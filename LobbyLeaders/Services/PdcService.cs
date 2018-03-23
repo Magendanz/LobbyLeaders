@@ -37,7 +37,7 @@ namespace LobbyList.Services
         public async Task<List<Expenditure>> GetExpenditures(int year, string filer_id = null)
         {
             var query = $"election_year={year}";
-            if (filer_id != null)
+            if (!String.IsNullOrWhiteSpace(filer_id))
                 query += $"&filer_id={filer_id}";
             return await client.SendAsync<List<Expenditure>>(HttpMethod.Get, new Uri(baseUri, $"tijg-9zyp.json?{query}&$limit={limit}"));
         }
@@ -45,40 +45,76 @@ namespace LobbyList.Services
         public async Task<List<Contribution>> GetContributions(int year, string filer_id = null)
         {
             var query = $"election_year={year}";
-            if (filer_id != null)
+            if (!String.IsNullOrWhiteSpace(filer_id))
                 query += $"&filer_id={filer_id}";
             return await client.SendAsync<List<Contribution>>(HttpMethod.Get, new Uri(baseUri, $"kv7h-kjye.json?{query}&$limit={limit}"));
         }
 
-        public async Task<List<Contribution>> GetContributionsByType(int year, string entityType, string jurisdictionType, string contributionType)
+        public async Task<List<Contribution>> GetContributionsByType(int year, string entityType = null, string jurisdictionType = null, string contributionType = null)
         {
-            var uri = new Uri(baseUri, $"kv7h-kjye.json?election_year={year}&code={entityType}&jurisdiction_type={jurisdictionType}&cash_or_in_kind={contributionType}&$limit={limit}");
-            return await client.SendAsync<List<Contribution>>(HttpMethod.Get, uri);
+            var query = $"election_year={year}";
+            if (!String.IsNullOrWhiteSpace(entityType))
+                query += $"&code={entityType}";
+            if (!String.IsNullOrWhiteSpace(jurisdictionType))
+                query += $"&jurisdiction_type={jurisdictionType}";
+            if (!String.IsNullOrWhiteSpace(contributionType))
+                query += $"&cash_or_in_kind={contributionType}";
+            return await client.SendAsync<List<Contribution>>(HttpMethod.Get, new Uri(baseUri, $"kv7h-kjye.json?{query}&$limit={limit}"));
         }
 
         public List<Donor> GetDonorsFromContributions(IEnumerable<Contribution> contributions)
         {
             var result = new List<Donor>();
+            var index = 1;
             foreach (var group in contributions.GroupBy(i => i.contributor_name, new FuzzyComparer()).ToList())
             {
                 result.Add(new Donor
                 {
-                    // Pick most frequently used name and address
+                    // Create auto-increment primary key
+                    Id = index++,
+
+                    // Pick most frequently used contributor properties
                     Name = group.MostCommon(i => i.contributor_name),
                     Address = group.MostCommon(i => i.contributor_address),
                     City = group.MostCommon(i => i.contributor_city),
                     State = group.MostCommon(i => i.contributor_state),
                     Zip = group.MostCommon(i => i.contributor_zip),
-
-                    // Tally contribution amounts
-                    Count = group.Count(),
-                    Total = group.Sum(i => i.amount),
-                    Republican = group.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount),
-                    Democrat = group.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount),
+                    Type = group.MostCommon(i => i.code),
 
                     // Save the list of contributions from this donor
                     Contributions = new List<Contribution>(group)
                 });
+            }
+
+            return result;
+        }
+
+        public List<Score> GetDonorScores(IEnumerable<Donor> donors, int year, string jurisdictionType = null, string contributionType = null)
+        {
+            var result = new List<Score>();
+            foreach (var donor in donors)
+            {
+                var contributions = donor.Contributions.Where(i => i.election_year == year
+                && (String.IsNullOrWhiteSpace(jurisdictionType) || i.jurisdiction_type == jurisdictionType)
+                && (String.IsNullOrWhiteSpace(contributionType) || i.cash_or_in_kind == contributionType)).ToList();
+
+                var count = contributions.Count();
+                if (count > 0)
+                {
+                    var total = contributions.Sum(i => i.amount);
+                    var dem = contributions.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
+                    var rep = contributions.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
+
+                    result.Add(new Score
+                    {
+                        Donor = donor.Id,
+                        Year = year,
+                        Jurisdiction = jurisdictionType,
+                        Count = count,
+                        Total = total,
+                        Bias = rep - dem
+                    });
+                }
             }
 
             return result;

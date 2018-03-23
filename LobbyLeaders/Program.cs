@@ -17,43 +17,39 @@ namespace LobbyList
             var pdc = new PdcService();
             var contributions = new List<Contribution>();
 
-            for (var year = 2018; year >= 2003; --year)
+            for (var year = 2018; year >= 2008; --year)
             {
                 Console.WriteLine($"Analyzing donations for {year}...");
                 Console.WriteLine("  Loading businesses...");
                 contributions.AddRange(await pdc.GetContributionsByType(year, "Business", "Legislative", "Cash"));
+                contributions.AddRange(await pdc.GetContributionsByType(year, "Business", "Statewide", "Cash"));
                 Console.WriteLine("  Loading unions...");
                 contributions.AddRange(await pdc.GetContributionsByType(year, "Union", "Legislative", "Cash"));
+                contributions.AddRange(await pdc.GetContributionsByType(year, "Union", "Statewide", "Cash"));
                 Console.WriteLine("  Loading PACs...");
                 contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Legislative", "Cash"));
+                contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Statewide", "Cash"));
             }
             Console.WriteLine();
 
             Console.WriteLine("Normalizing donor names...");
-            var donors = pdc.GetDonorsFromContributions(contributions).OrderByDescending(i => i.Total);
+            var donors = pdc.GetDonorsFromContributions(contributions);
             Console.WriteLine();
 
-            Console.WriteLine($"Writing results...");
-            await TsvSerializer<Donor>.SerializeAsync(donors.OrderByDescending(i => i.Total), "Donors (2003-18).txt");
+            Console.WriteLine($"Writing donor list...");
+            await TsvSerializer<Donor>.SerializeAsync(donors, "Donors (2008-18).txt");
+            Console.WriteLine();
 
-            for (var year = 2018; year >= 2003; --year)
+            Console.WriteLine($"Tallying contributions by year...");
+            var scores = new List<Score>();
+            for (var year = 2018; year >= 2008; --year)
             {
-                var path = $"Donors ({year}).txt";
-                Console.WriteLine($"  File: {path}");
+                Console.WriteLine($"  {year}...");
 
-                foreach (var donor in donors)
-                {
-                    var donations = donor.Contributions.Where(i => i.election_year == year).ToList();
-                    donor.Count = donations.Count();
-                    if (donor.Count > 0)
-                    {
-                        donor.Total = donations.Sum(i => i.amount);
-                        donor.Republican = donations.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
-                        donor.Democrat = donations.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
-                    }
-                }
+                scores.AddRange(pdc.GetDonorScores(donors, year, "Legislative", "Cash"));
+                scores.AddRange(pdc.GetDonorScores(donors, year, "Statewide", "Cash"));
 
-                await TsvSerializer<Donor>.SerializeAsync(donors.Where(i => i.Count > 0).OrderByDescending(i => i.Total), path);
+                await TsvSerializer<Score>.SerializeAsync(scores, "Scores (2008-18).txt");
             }
             Console.WriteLine();
 
