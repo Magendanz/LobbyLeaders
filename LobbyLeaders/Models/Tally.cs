@@ -4,7 +4,7 @@ using System.Text;
 
 namespace LobbyList.Models
 {
-    public class Score
+    public class Tally
     {
         public int Donor { get; set; }
         public int Year { get; set; }

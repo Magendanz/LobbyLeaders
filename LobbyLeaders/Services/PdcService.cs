@@ -89,9 +89,9 @@ namespace LobbyList.Services
             return result;
         }
 
-        public List<Score> GetDonorScores(IEnumerable<Donor> donors, int year, string jurisdictionType = null, string contributionType = null)
+        public List<Tally> GetDonorSubtotals(IEnumerable<Donor> donors, int year, string jurisdictionType = null, string contributionType = null)
         {
-            var result = new List<Score>();
+            var result = new List<Tally>();
             foreach (var donor in donors)
             {
                 var contributions = donor.Contributions.Where(i => i.election_year == year
@@ -102,10 +102,10 @@ namespace LobbyList.Services
                 if (count > 0)
                 {
                     var total = contributions.Sum(i => i.amount);
-                    var dem = contributions.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
-                    var rep = contributions.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
+                    var rep = contributions.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
+                    var dem = contributions.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
 
-                    result.Add(new Score
+                    result.Add(new Tally
                     {
                         Donor = donor.Id,
                         Year = year,
