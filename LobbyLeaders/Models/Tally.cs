@@ -11,6 +11,7 @@ namespace LobbyList.Models
         public string Jurisdiction { get; set; }
         public int Count { get; set; }
         public double Total { get; set; }
-        public double Bias { get; set; }
+        public double Republican { get; set; }
+        public double Democrat { get; set; }
     }
 }

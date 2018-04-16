@@ -40,17 +40,9 @@ namespace LobbyList
             await TsvSerializer<Donor>.SerializeAsync(donors, "Donors (2008-18).txt");
             Console.WriteLine();
 
-            Console.WriteLine($"Tallying contributions by year...");
-            var scores = new List<Tally>();
-            for (var year = 2018; year >= 2008; --year)
-            {
-                Console.WriteLine($"  {year}...");
-
-                scores.AddRange(pdc.GetDonorSubtotals(donors, year, "Legislative", "Cash"));
-                scores.AddRange(pdc.GetDonorSubtotals(donors, year, "Statewide", "Cash"));
-
-                await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).txt");
-            }
+            Console.WriteLine($"Tallying contributions...");
+            var scores = pdc.GetDonorTotals(donors);
+            await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).txt");
             Console.WriteLine();
 
             Console.Write("Press any key to continue...");

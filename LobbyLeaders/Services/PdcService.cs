@@ -112,7 +112,34 @@ namespace LobbyList.Services
                         Jurisdiction = jurisdictionType,
                         Count = count,
                         Total = total,
-                        Bias = rep - dem
+                        Republican = rep,
+                        Democrat = dem
+                    });
+                }
+            }
+
+            return result;
+        }
+        public List<Tally> GetDonorTotals(IEnumerable<Donor> donors)
+        {
+            var result = new List<Tally>();
+            foreach (var donor in donors)
+            {
+                var count = donor.Contributions.Count();
+                if (count > 0)
+                {
+                    var total = donor.Contributions.Sum(i => i.amount);
+                    var rep = donor.Contributions.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
+                    var dem = donor.Contributions.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
+
+                    result.Add(new Tally
+                    {
+                        Donor = donor.Id,
+                        Jurisdiction = "Partisan",
+                        Count = count,
+                        Total = total,
+                        Republican = rep,
+                        Democrat = dem
                     });
                 }
             }
@@ -120,6 +147,7 @@ namespace LobbyList.Services
             return result;
         }
     }
+
 
     public class FuzzyComparer : IEqualityComparer<string>
     {
