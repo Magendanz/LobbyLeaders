@@ -19,8 +19,5 @@ namespace LobbyList.Models
         public short employment_year { get; set; }
         //        public Link agent_pic_url { get; set; }
         //        public Link lobbyist_firm_url { get; set; }
-
-        public double total_contributions;
-        public double republican_contributions;
     }
 }

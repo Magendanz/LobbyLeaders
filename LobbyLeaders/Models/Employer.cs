@@ -24,9 +24,6 @@ namespace LobbyList.Models
         //        public Link lobbyist_firm_url { get; set; } 
         //        public Link employment_registration_url { get; set; } 
         //        public Link employer_url { get; set; } 
-
-        public double total_contributions;
-        public double republican_contributions;
     }
 
     public class Link

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace LobbyList.Helpers
 {
@@ -52,6 +54,24 @@ namespace LobbyList.Helpers
         {
             var cultureInfo = System.Threading.Thread.CurrentThread.CurrentCulture;
             return cultureInfo.TextInfo.ToTitleCase(str.ToLower());
+        }
+
+        public static string ToPhoneNumber(this string str)
+        {
+            if (!String.IsNullOrEmpty(str))
+            {
+                // Strip out non-digits
+                str = new Regex(@"\D").Replace(str, String.Empty);
+
+                if (str.Length == 7)
+                    return Convert.ToInt64(str).ToString("###-####");
+                if (str.Length == 10)
+                    return Convert.ToInt64(str).ToString("(###) ###-####");
+                if (str.Length > 10)
+                    return Convert.ToInt64(str).ToString("(###) ###-#### x" + new String('#', (str.Length - 10)));
+            }
+
+            return str;
         }
         #endregion Extension Methods
     }

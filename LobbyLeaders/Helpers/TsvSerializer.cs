@@ -47,7 +47,7 @@ namespace LobbyList.Helpers
             using (var sr = new StreamReader(path))
             {
                 var result = new List<T>();
-                var fields = new List<FieldInfo>();
+                var properties = new List<PropertyInfo>();
                 String line;
 
                 // Load the tab-delimited header
@@ -56,7 +56,7 @@ namespace LobbyList.Helpers
                 // Create field list from header names
                 foreach (var item in line.Split('\t'))
                 {
-                    fields.Add(typeof(T).GetField(item));   // Note: Some may not map, which yields null
+                    properties.Add(typeof(T).GetProperty(item));   // Note: Some may not map, which yields null
                 }
 
                 // Process each record
@@ -64,13 +64,13 @@ namespace LobbyList.Helpers
                 {
                     T record = new T();
                     var items = line.Split('\t');
-                    Debug.Assert(items.Length == fields.Count);
+                    Debug.Assert(items.Length == properties.Count);
 
                     for (var i = 0; i < items.Length; ++i)
                     {
-                        if (!String.IsNullOrWhiteSpace(items[i]) && fields[i] != null)
+                        if (!String.IsNullOrWhiteSpace(items[i]) && properties[i] != null)
                         {
-                            fields[i].SetValue(record, Convert.ChangeType(items[i], fields[i].FieldType));
+                            properties[i].SetValue(record, Convert.ChangeType(items[i], properties[i].PropertyType));
                         }
                     }
 
