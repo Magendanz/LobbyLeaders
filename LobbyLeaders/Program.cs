@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,7 +15,7 @@ namespace LobbyList
     {
         static async Task Main(string[] args)
         {
-            await BuildLobbyList();
+            await MineCaucusDonors(2008, 2018);
 
             Console.Write("Press any key to continue...");
             Console.ReadKey();
@@ -41,7 +42,7 @@ namespace LobbyList
             Console.WriteLine();
         }
 
-        async Task MineDonors(short start, short end, int[] districts)
+        static async Task MineDonors(short start, short end, int[] districts)
         {
             var pdc = new PdcService();
             var contributions = new List<Contribution>();
@@ -74,7 +75,7 @@ namespace LobbyList
             Console.WriteLine();
         }
 
-        async Task MineOrganizationalDonors(short start, short end)
+        static async Task MineOrganizationalDonors(short start, short end)
         {
             var pdc = new PdcService();
             var contributions = new List<Contribution>();
@@ -105,6 +106,55 @@ namespace LobbyList
             Console.WriteLine($"Tallying contributions...");
             var scores = pdc.GetDonorTotals(donors);
             await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
+            Console.WriteLine();
+        }
+
+
+        static async Task MineCaucusDonors(short start, short end)
+        {
+            await MineDonors(start, end, "HOUSRO%20507", "HROC");
+            await MineDonors(start, end, "REAGF%20%20507", "Reagan Fund");
+            await MineDonors(start, end, "HOUSDC%20507", "HDCC");
+            await MineDonors(start, end, "HARRTF%20506", "Harry Truman Fund");
+            await MineDonors(start, end, "SENARC%20148", "SRCC");
+            await MineDonors(start, end, "LEADC%20%20148", "Leadership Council");
+            await MineDonors(start, end, "SENADC%20507", "SDCC");
+            await MineDonors(start, end, "HARRTF%20506", "Kennedy Fund");
+
+        }
+
+        static async Task MineDonors(short start, short end, string filer, string desc)
+        {
+            var pdc = new PdcService();
+            var contributions = new List<Contribution>();
+
+            Console.WriteLine($"Mining donors for {desc}:");
+            for (var year = start; year <= end; ++year)
+            {
+                Console.WriteLine($"  Analyzing donations for {year}...");
+                contributions.AddRange(await pdc.GetContributions(year, filer));
+            }
+            Console.WriteLine();
+
+            Console.WriteLine("Normalizing donor names...");
+            var donors = pdc.GetDonorsFromContributions(contributions);
+            Console.WriteLine();
+
+            Console.WriteLine($"Tallying contributions...");
+            var sb = new StringBuilder("Contibutor");
+            for (var year = start; year <= end; ++year)
+                sb.Append($"\t{year}");
+            sb.Append("\tTotal");
+
+            foreach (var donor in donors)
+            {
+                sb.Append($"\n{donor.Name}");
+                for (var year = start; year <= end; ++year)
+                    sb.Append($"\t{donor.Contributions.Where(i => i.election_year == year).Sum(j => j.amount)}");
+                sb.Append($"\t{donor.Contributions.Sum(i => i.amount)}");
+            }
+
+            File.WriteAllText($"{desc} ({start}-{end % 100}).tsv", sb.ToString());
             Console.WriteLine();
         }
     }

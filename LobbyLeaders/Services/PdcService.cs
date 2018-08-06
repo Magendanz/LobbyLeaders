@@ -109,7 +109,7 @@ namespace LobbyList.Services
         {
             var query = $"$limit={limit}";
             if (year != null)
-                query += $"election_year={year}";
+                query += $"&election_year={year}";
             if (!String.IsNullOrWhiteSpace(filer_id))
                 query += $"&filer_id={filer_id}";
             return await client.SendAsync<List<Expenditure>>(HttpMethod.Get, 
@@ -120,7 +120,7 @@ namespace LobbyList.Services
         {
             var query = $"$limit={limit}";
             if (year != null)
-                query += $"election_year={year}";
+                query += $"&election_year={year}";
             if (!String.IsNullOrWhiteSpace(filer_id))
                 query += $"&filer_id={filer_id}";
             return await client.SendAsync<List<Contribution>>(HttpMethod.Get, 
