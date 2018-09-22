@@ -15,7 +15,7 @@ namespace LobbyList
     {
         static async Task Main(string[] args)
         {
-            await MineCaucusDonors(2008, 2018);
+            await MineCaucusMemberDonors(2018, "R", "Legislative");
 
             Console.Write("Press any key to continue...");
             Console.ReadKey();
@@ -120,7 +120,6 @@ namespace LobbyList
             await MineDonors(start, end, "LEADC%20%20148", "Leadership Council");
             await MineDonors(start, end, "SENADC%20507", "SDCC");
             await MineDonors(start, end, "HARRTF%20506", "Kennedy Fund");
-
         }
 
         static async Task MineDonors(short start, short end, string filer, string desc)
@@ -155,6 +154,55 @@ namespace LobbyList
             }
 
             File.WriteAllText($"{desc} ({start}-{end % 100}).tsv", sb.ToString());
+            Console.WriteLine();
+        }
+
+        static async Task MineCaucusMemberDonors(short year, string party, string jurisdictionType = null)
+        {
+            var pdc = new PdcService();
+
+            Console.WriteLine($"Retrieving active campaigns:");
+            var campaigns = await pdc.GetCommittees(year, party, jurisdictionType);
+            var active = campaigns.Where(i => (i.primary_election_status == "Qualified for general" || i.primary_election_status == "Unopposed in primary"));
+            foreach (var candidate in active)
+                await MineDonors(candidate.first_name, candidate.last_name, jurisdictionType);
+        }
+
+        static async Task MineDonors(string first, string last, string jurisdictionType = null)
+        {
+            var pdc = new PdcService();
+            var contributions = new List<Contribution>();
+
+            Console.WriteLine($"Retrieving campaigns for {first} {last}:");
+            var campaigns = await pdc.GetCommittees(first, last, jurisdictionType);
+            var years = campaigns.Select(i => i.election_year).Distinct().OrderBy(i => i).ToArray();
+            foreach (var year in years)
+            {
+                Console.WriteLine($"  Analyzing donations for {year}...");
+                foreach (var campaign in campaigns.Where(i => i.election_year == year))
+                    contributions.AddRange(await pdc.GetContributions(year, campaign.filer_id));
+            }
+            Console.WriteLine();
+
+            Console.WriteLine("Normalizing donor names...");
+            var donors = pdc.GetDonorsFromContributions(contributions);
+            Console.WriteLine();
+
+            Console.WriteLine($"Tallying contributions...");
+            var sb = new StringBuilder("Contributor");
+            foreach (var year in years)
+                sb.Append($"\t{year}");
+            sb.Append("\tTotal");
+
+            foreach (var donor in donors)
+            {
+                sb.Append($"\n{donor.Name}");
+                foreach (var year in years)
+                    sb.Append($"\t{donor.Contributions.Where(i => i.election_year == year).Sum(j => j.amount)}");
+                sb.Append($"\t{donor.Contributions.Sum(i => i.amount)}");
+            }
+
+            File.WriteAllText($"{first} {last}.tsv", sb.ToString());
             Console.WriteLine();
         }
     }

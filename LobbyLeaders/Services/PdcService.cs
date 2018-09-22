@@ -105,18 +105,44 @@ namespace LobbyList.Services
             return strength > 0.8 ? match.Id : 0;   // Adjust fuzzy match threshold here!
         }
 
-        public async Task<List<Expenditure>> GetExpenditures(int? year = null, string filer_id = null)
+        public async Task<List<Committee>> GetCommittees(short? year, string party, string jurisdictionType = null)
+        {
+            var query = $"$limit={limit}";
+            if (year != null)
+                query += $"&election_year={year}";
+            if (!String.IsNullOrWhiteSpace(party))
+                query += $"&party_code={party}";
+            if (!String.IsNullOrWhiteSpace(jurisdictionType))
+                query += $"&jurisdiction_type={jurisdictionType}";
+            return await client.SendAsync<List<Committee>>(HttpMethod.Get,
+                new Uri(baseUri, $"d27u-zvri.json?{query}"));
+        }
+
+        public async Task<List<Committee>> GetCommittees(string first, string last, string jurisdictionType = null)
+        {
+            var query = $"$limit={limit}";
+            if (!String.IsNullOrWhiteSpace(first))
+                query += $"&first_name={first}";
+            if (!String.IsNullOrWhiteSpace(last))
+                query += $"&last_name={last}";
+            if (!String.IsNullOrWhiteSpace(jurisdictionType))
+                query += $"&jurisdiction_type={jurisdictionType}";
+            return await client.SendAsync<List<Committee>>(HttpMethod.Get,
+                new Uri(baseUri, $"d27u-zvri.json?{query}"));
+        }
+
+        public async Task<List<Expenditure>> GetExpenditures(short? year = null, string filer_id = null)
         {
             var query = $"$limit={limit}";
             if (year != null)
                 query += $"&election_year={year}";
             if (!String.IsNullOrWhiteSpace(filer_id))
                 query += $"&filer_id={filer_id}";
-            return await client.SendAsync<List<Expenditure>>(HttpMethod.Get, 
+            return await client.SendAsync<List<Expenditure>>(HttpMethod.Get,
                 new Uri(baseUri, $"tijg-9zyp.json?{query}"));
         }
 
-        public async Task<List<Contribution>> GetContributions(int? year = null, string filer_id = null)
+        public async Task<List<Contribution>> GetContributions(short? year = null, string filer_id = null)
         {
             var query = $"$limit={limit}";
             if (year != null)
@@ -127,7 +153,7 @@ namespace LobbyList.Services
                 new Uri(baseUri, $"kv7h-kjye.json?{query}"));
         }
 
-        public async Task<List<Contribution>> GetContributionsByType(int? year = null, string entityType = null, string jurisdictionType = null, string legislativeDistrict = null, string contributionType = null)
+        public async Task<List<Contribution>> GetContributionsByType(short? year = null, string entityType = null, string jurisdictionType = null, string legislativeDistrict = null, string contributionType = null)
         {
             var query = $"$limit={limit}";
             if (year != null)
@@ -171,7 +197,7 @@ namespace LobbyList.Services
             return result;
         }
 
-        public List<Tally> GetDonorSubtotals(IEnumerable<Donor> donors, int year, string jurisdictionType = null, string contributionType = null)
+        public List<Tally> GetDonorSubtotals(IEnumerable<Donor> donors, short year, string jurisdictionType = null, string contributionType = null)
         {
             var result = new List<Tally>();
             foreach (var donor in donors)
