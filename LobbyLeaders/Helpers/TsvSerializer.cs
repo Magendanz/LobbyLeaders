@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace LobbyList.Helpers
+namespace LobbyLeaders.Helpers
 {
     public class TsvSerializer<T> where T : new()
     {

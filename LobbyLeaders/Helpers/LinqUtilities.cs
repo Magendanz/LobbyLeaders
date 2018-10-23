@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace LobbyList.Helpers
+namespace LobbyLeaders.Helpers
 {
     public static class LinqUtilities
     {

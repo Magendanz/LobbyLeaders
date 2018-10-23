@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace LobbyList.Helpers
+namespace LobbyLeaders.Helpers
 {
     public static class SocrataUtilities
     {

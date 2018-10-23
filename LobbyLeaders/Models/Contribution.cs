@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace LobbyList.Models
+namespace LobbyLeaders.Models
 {
     public class Contribution
     {

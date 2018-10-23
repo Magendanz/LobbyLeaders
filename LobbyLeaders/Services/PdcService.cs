@@ -6,10 +6,10 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
-using LobbyList.Helpers;
-using LobbyList.Models;
+using LobbyLeaders.Helpers;
+using LobbyLeaders.Models;
 
-namespace LobbyList.Services
+namespace LobbyLeaders.Services
 {
     public class PdcService
     {
@@ -99,8 +99,8 @@ namespace LobbyList.Services
 
         public int BestDonorMatch(string str, IEnumerable<Donor> donors)
         {
-            var match = donors.OrderByDescending(i => StringUtilities.FuzzyMatch(str, i.Name)).First();
-            var strength = StringUtilities.FuzzyMatch(str, match.Name);
+            var match = donors.OrderByDescending(i => str.FuzzyMatch(i.Name)).First();
+            var strength = str.FuzzyMatch(match.Name);
 
             return strength > 0.8 ? match.Id : 0;   // Adjust fuzzy match threshold here!
         }
@@ -174,7 +174,13 @@ namespace LobbyList.Services
         {
             var result = new List<Donor>();
             var index = 1;
-            foreach (var group in contributions.GroupBy(i => i.contributor_name, new FuzzyComparer()).ToList())
+
+            var synonyms = CsvSerializer<string>.DeserializeAsync("Data/States.csv").Result;
+            synonyms.AddRange(CsvSerializer<string>.DeserializeAsync("Data/Organizations.csv").Result);
+            //synonyms.AddRange(CsvSerializer<string>.DeserializeAsync("/Data/Nicknames.csv").Result);
+
+            var comparer = new FuzzyComparer(0.8);
+            foreach (var group in contributions.GroupBy(i => i.contributor_name, comparer).ToList())
             {
                 result.Add(new Donor
                 {
@@ -259,7 +265,33 @@ namespace LobbyList.Services
 
     public class FuzzyComparer : IEqualityComparer<string>
     {
-        public bool Equals(string strA, string strB) => StringUtilities.FuzzyMatch(strA, strB) > 0.8;   // Adjust fuzzy match threshold here!
-        public int GetHashCode(string str) => 0;    // Only executes Equals if two hash codes are equal, so we always return zero
+        IEnumerable<IEnumerable<string>> _abbreviations;    // Table of known abbreviations or nicknames
+        double _threshold;                                  // Fuzzy match threshold
+
+        public bool Equals(string strA, string strB)
+        {
+            if (_abbreviations != null)
+            {
+                var listA = strA.Variations(_abbreviations);
+                var listB = strB.Variations(_abbreviations);
+
+                foreach (var i in listA)
+                    foreach (var j in listB)
+                        if (i.FuzzyMatch(j) > _threshold)
+                            return true;
+
+                return false;
+            }
+            else
+                return strA.FuzzyMatch(strB) > _threshold;
+        }
+
+        public int GetHashCode(string str) => 0;            // Only executes Equals if two hash codes are equal, so we always return zero
+
+        public FuzzyComparer(double threshold, IEnumerable<IEnumerable<string>> abbreviations = null)
+        {
+            _abbreviations = abbreviations;
+            _threshold = threshold;
+        }
     }
 }
