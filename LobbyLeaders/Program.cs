@@ -15,8 +15,9 @@ namespace LobbyLeaders
     {
         static async Task Main(string[] args)
         {
-            await MineCaucusMemberDonors(2018, "R", "Legislative");
+            //await MineCaucusMemberDonors(2018, "R", "Legislative");
             //await MineCaucusDonors(2008, 2018);
+            await MineCampaignExpenses(2008, 2018);
 
             Console.Write("Press any key to continue...");
             Console.ReadKey();
@@ -205,5 +206,32 @@ namespace LobbyLeaders
             File.WriteAllText($"{first} {last}.tsv", sb.ToString());
             Console.WriteLine();
         }
+
+        static async Task MineCampaignExpenses(short start, short end)
+        {
+            var pdc = new PdcService();
+            var expenses = new List<Expenditure>();
+
+            for (var year = start; year <= end; ++year)
+            {
+                Console.WriteLine($"Analyzing expenses for {year}...");
+                expenses.AddRange(await pdc.GetExpensesByType(year, "Candidate", null, "Legislative"));
+            }
+            Console.WriteLine();
+
+            Console.WriteLine("Normalizing recipient names...");
+            var recipients = pdc.GetRecipientsFromExpenses(expenses);
+            Console.WriteLine();
+
+            Console.WriteLine($"Writing recipient list...");
+            await TsvSerializer<Recipient>.SerializeAsync(recipients, "Recipients (2008-18).tsv");
+            Console.WriteLine();
+
+            Console.WriteLine($"Tallying contributions...");
+            var scores = pdc.GetRecipientTotals(recipients);
+            await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
+            Console.WriteLine();
+        }
+
     }
 }

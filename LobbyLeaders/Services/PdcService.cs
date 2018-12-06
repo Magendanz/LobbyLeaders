@@ -14,7 +14,7 @@ namespace LobbyLeaders.Services
     public class PdcService
     {
         HttpClient client = new HttpClient();
-        Uri baseUri = new Uri("https://data.wa.gov/resource/");
+        readonly Uri baseUri = new Uri("https://data.wa.gov/resource/");
         const short limit = Int16.MaxValue;
 
         public async Task<List<Agent>> GetAgents(int? year = null)
@@ -142,6 +142,24 @@ namespace LobbyLeaders.Services
                 new Uri(baseUri, $"tijg-9zyp.json?{query}"));
         }
 
+        public async Task<List<Expenditure>> GetExpensesByType(short? year = null, string entityType = null, string expenseCode = null, string jurisdictionType = null, string legislativeDistrict = null)
+        {
+            var query = $"$limit={limit}";
+            if (year != null)
+                query += $"&election_year={year}";
+            if (!String.IsNullOrWhiteSpace(entityType))
+                query += $"&type={entityType}";
+            if (!String.IsNullOrWhiteSpace(expenseCode))
+                query += $"&code={expenseCode}";
+            if (!String.IsNullOrWhiteSpace(jurisdictionType))
+                query += $"&jurisdiction_type={jurisdictionType}";
+            if (!String.IsNullOrWhiteSpace(legislativeDistrict))
+                query += $"&legislative_district={legislativeDistrict}";
+
+            return await client.SendAsync<List<Expenditure>>(HttpMethod.Get,
+                new Uri(baseUri, $"tijg-9zyp.json?{query}"));
+        }
+
         public async Task<List<Contribution>> GetContributions(short? year = null, string filer_id = null)
         {
             var query = $"$limit={limit}";
@@ -203,6 +221,36 @@ namespace LobbyLeaders.Services
             return result;
         }
 
+        public List<Recipient> GetRecipientsFromExpenses(IEnumerable<Expenditure> expenses)
+        {
+            var result = new List<Recipient>();
+            var index = 1;
+
+            var comparer = new FuzzyComparer(0.8);
+            foreach (var group in expenses.GroupBy(i => i.recipient_name, comparer).ToList())
+            {
+                result.Add(new Recipient
+                {
+                    // Create auto-increment primary key
+                    Id = index++,
+
+                    // Pick most frequently used contributor properties
+                    Name = group.MostCommon(i => i.recipient_name),
+                    Address = group.MostCommon(i => i.recipient_address),
+                    City = group.MostCommon(i => i.recipient_city),
+                    State = group.MostCommon(i => i.recipient_state),
+                    Zip = group.MostCommon(i => i.recipient_zip),
+                    Type = group.MostCommon(i => i.code),
+
+                    // Save the list of contributions from this donor
+                    Payments = new List<Expenditure>(group)
+                });
+            }
+
+            return result;
+        }
+
+
         public List<Tally> GetDonorSubtotals(IEnumerable<Donor> donors, short year, string jurisdictionType = null, string contributionType = null)
         {
             var result = new List<Tally>();
@@ -234,6 +282,7 @@ namespace LobbyLeaders.Services
 
             return result;
         }
+
         public List<Tally> GetDonorTotals(IEnumerable<Donor> donors)
         {
             var result = new List<Tally>();
@@ -260,13 +309,40 @@ namespace LobbyLeaders.Services
 
             return result;
         }
+
+        public List<Tally> GetRecipientTotals(IEnumerable<Recipient> recipients)
+        {
+            var result = new List<Tally>();
+            foreach (var recipient in recipients)
+            {
+                var count = recipient.Payments.Count();
+                if (count > 0)
+                {
+                    var total = recipient.Payments.Sum(i => i.amount);
+                    var rep = recipient.Payments.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
+                    var dem = recipient.Payments.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
+
+                    result.Add(new Tally
+                    {
+                        Donor = recipient.Id,
+                        Jurisdiction = "Partisan",
+                        Count = count,
+                        Total = total,
+                        Republican = rep,
+                        Democrat = dem
+                    });
+                }
+            }
+
+            return result;
+        }
     }
 
 
     public class FuzzyComparer : IEqualityComparer<string>
     {
-        IEnumerable<IEnumerable<string>> _abbreviations;    // Table of known abbreviations or nicknames
-        double _threshold;                                  // Fuzzy match threshold
+        readonly IEnumerable<IEnumerable<string>> _abbreviations;    // Table of known abbreviations or nicknames
+        readonly double _threshold;                                  // Fuzzy match threshold
 
         public bool Equals(string strA, string strB)
         {
