@@ -211,11 +211,13 @@ namespace LobbyLeaders
         {
             var pdc = new PdcService();
             var expenses = new List<Expenditure>();
+            var campaigns = new List<Committee>();
 
             for (var year = start; year <= end; ++year)
             {
                 Console.WriteLine($"Analyzing expenses for {year}...");
                 expenses.AddRange(await pdc.GetExpensesByType(year, "Candidate", null, "Legislative"));
+                campaigns.AddRange(await pdc.GetCommittees(year, null, "Candidate", "Legislative"));
             }
             Console.WriteLine();
 
@@ -228,7 +230,7 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine($"Tallying contributions...");
-            var scores = pdc.GetRecipientTotals(recipients);
+            var scores = pdc.GetRecipientTotals(recipients, campaigns);
             await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
             Console.WriteLine();
         }

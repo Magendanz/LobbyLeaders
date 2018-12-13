@@ -8,7 +8,12 @@ namespace LobbyLeaders.Helpers
     {
         public static TResult MostCommon<TSource, TResult>(this IEnumerable<TSource> source, Func<TSource, TResult> selector)
         {
-            return source.GroupBy(selector).OrderByDescending(i => i.Count()).First().Key;
+            var groups = source.GroupBy(selector).OrderByDescending(i => i.Count());
+            foreach (var group in groups)
+                if (group.Key != default)
+                    return group.Key;
+
+            return default;
         }
     }
 }

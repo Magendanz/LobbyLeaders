@@ -22,7 +22,7 @@ namespace LobbyLeaders.Services
             var query = $"$limit={limit}";
             if (year != null)
                 query += $"&employment_year={year}";
-            return await client.SendAsync<List<Agent>>(HttpMethod.Get, 
+            return await client.SendAsync<List<Agent>>(HttpMethod.Get,
                 new Uri(baseUri, $"bp5b-jrti.json?{query}"));
         }
 
@@ -31,7 +31,7 @@ namespace LobbyLeaders.Services
             var query = $"$limit={limit}";
             if (year != null)
                 query += $"employment_year={year}";
-            return await client.SendAsync<List<Employer>>(HttpMethod.Get, 
+            return await client.SendAsync<List<Employer>>(HttpMethod.Get,
                 new Uri(baseUri, $"e7sd-jbuy.json?{query}"));
         }
 
@@ -40,7 +40,7 @@ namespace LobbyLeaders.Services
             var query = $"$limit={limit}";
             if (year != null)
                 query += $"Year={year}";
-            return await client.SendAsync<List<EmployerSum>>(HttpMethod.Get, 
+            return await client.SendAsync<List<EmployerSum>>(HttpMethod.Get,
                 new Uri(baseUri, $"biux-xiwe.json?{query}"));
         }
 
@@ -105,13 +105,15 @@ namespace LobbyLeaders.Services
             return strength > 0.8 ? match.Id : 0;   // Adjust fuzzy match threshold here!
         }
 
-        public async Task<List<Committee>> GetCommittees(short? year, string party, string jurisdictionType = null)
+        public async Task<List<Committee>> GetCommittees(short? year, string party, string filerType = null, string jurisdictionType = null)
         {
             var query = $"$limit={limit}";
             if (year != null)
                 query += $"&election_year={year}";
             if (!String.IsNullOrWhiteSpace(party))
                 query += $"&party_code={party}";
+            if (!String.IsNullOrWhiteSpace(filerType))
+                query += $"&filer_type={filerType}";
             if (!String.IsNullOrWhiteSpace(jurisdictionType))
                 query += $"&jurisdiction_type={jurisdictionType}";
             return await client.SendAsync<List<Committee>>(HttpMethod.Get,
@@ -167,7 +169,7 @@ namespace LobbyLeaders.Services
                 query += $"&election_year={year}";
             if (!String.IsNullOrWhiteSpace(filer_id))
                 query += $"&filer_id={filer_id}";
-            return await client.SendAsync<List<Contribution>>(HttpMethod.Get, 
+            return await client.SendAsync<List<Contribution>>(HttpMethod.Get,
                 new Uri(baseUri, $"kv7h-kjye.json?{query}"));
         }
 
@@ -184,7 +186,7 @@ namespace LobbyLeaders.Services
                 query += $"&legislative_district={legislativeDistrict}";
             if (!String.IsNullOrWhiteSpace(contributionType))
                 query += $"&cash_or_in_kind={contributionType}";
-            return await client.SendAsync<List<Contribution>>(HttpMethod.Get, 
+            return await client.SendAsync<List<Contribution>>(HttpMethod.Get,
                 new Uri(baseUri, $"kv7h-kjye.json?{query}"));
         }
 
@@ -269,7 +271,7 @@ namespace LobbyLeaders.Services
 
                     result.Add(new Tally
                     {
-                        Donor = donor.Id,
+                        Id = donor.Id,
                         Year = year,
                         Jurisdiction = jurisdictionType,
                         Count = count,
@@ -297,7 +299,7 @@ namespace LobbyLeaders.Services
 
                     result.Add(new Tally
                     {
-                        Donor = donor.Id,
+                        Id = donor.Id,
                         Jurisdiction = "Partisan",
                         Count = count,
                         Total = total,
@@ -310,7 +312,7 @@ namespace LobbyLeaders.Services
             return result;
         }
 
-        public List<Tally> GetRecipientTotals(IEnumerable<Recipient> recipients)
+        public List<Tally> GetRecipientTotals(IEnumerable<Recipient> recipients, IEnumerable<Committee> committees)
         {
             var result = new List<Tally>();
             foreach (var recipient in recipients)
@@ -318,23 +320,28 @@ namespace LobbyLeaders.Services
                 var count = recipient.Payments.Count();
                 if (count > 0)
                 {
-                    var total = recipient.Payments.Sum(i => i.amount);
-                    var rep = recipient.Payments.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
-                    var dem = recipient.Payments.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
+                    var filers = recipient.Payments.Select(i => i.filer_id).Distinct();
 
                     result.Add(new Tally
                     {
-                        Donor = recipient.Id,
+                        Id = recipient.Id,
                         Jurisdiction = "Partisan",
-                        Count = count,
-                        Total = total,
-                        Republican = rep,
-                        Democrat = dem
+                        Count = filers.Count(),
+                        Wins = filers.Count(i => Won(i, committees)),
+                        Total = recipient.Payments.Sum(i => i.amount),
+                        Republican = recipient.Payments.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount),
+                        Democrat = recipient.Payments.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount)
                     });
                 }
             }
 
             return result;
+        }
+
+        private bool Won(string filerId, IEnumerable<Committee> committees)
+        {
+            var campaign = committees.First(i => i.filer_id == filerId);
+            return campaign.general_election_status?.StartsWith("Won") ?? false;  // May want to include "Unopposed" in future
         }
     }
 
