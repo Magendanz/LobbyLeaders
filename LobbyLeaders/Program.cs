@@ -17,6 +17,7 @@ namespace LobbyLeaders
         {
             //await MineCaucusMemberDonors(2018, "R", "Legislative");
             //await MineCaucusDonors(2008, 2018);
+            //await MineOrganizationalDonors(2008, 2018);
             await MineCampaignExpenses(2008, 2018);
 
             Console.Write("Press any key to continue...");
@@ -48,6 +49,7 @@ namespace LobbyLeaders
         {
             var pdc = new PdcService();
             var contributions = new List<Contribution>();
+            var campaigns = new List<Committee>();
 
             for (var year = start; year <= end; ++year)
             {
@@ -58,8 +60,10 @@ namespace LobbyLeaders
                     Console.WriteLine($"    District {ld}...");
                     contributions.AddRange(await pdc.GetContributionsByType(year, "Individual", "Legislative", $"{ld:D2}", "Cash"));
                 }
+                campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Legislative"));
 
                 //contributions.AddRange(await pdc.GetContributionsByType(year, "Individual", "Statewide", null, "Cash"));
+                //campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Statewide"));
             }
             Console.WriteLine();
 
@@ -72,7 +76,7 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine($"Tallying contributions...");
-            var scores = pdc.GetDonorTotals(donors);
+            var scores = pdc.GetDonorTotals(donors, campaigns);
             await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
             Console.WriteLine();
         }
@@ -81,6 +85,7 @@ namespace LobbyLeaders
         {
             var pdc = new PdcService();
             var contributions = new List<Contribution>();
+            var campaigns = new List<Committee>();
 
             for (var year = start; year <= end; ++year)
             {
@@ -94,6 +99,9 @@ namespace LobbyLeaders
                 Console.WriteLine("  Loading PACs...");
                 contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Legislative", null, "Cash"));
                 contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Statewide", null, "Cash"));
+                Console.WriteLine("  Loading campaigns...");
+                campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Legislative"));
+                campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Statewide"));
             }
             Console.WriteLine();
 
@@ -106,7 +114,7 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine($"Tallying contributions...");
-            var scores = pdc.GetDonorTotals(donors);
+            var scores = pdc.GetDonorTotals(donors, campaigns);
             await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
             Console.WriteLine();
         }
