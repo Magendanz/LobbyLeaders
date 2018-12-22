@@ -17,8 +17,8 @@ namespace LobbyLeaders
         {
             //await MineCaucusMemberDonors(2018, "R", "Legislative");
             //await MineCaucusDonors(2008, 2018);
-            //await MineOrganizationalDonors(2008, 2018);
-            await MineCampaignExpenses(2008, 2018);
+            await MineOrganizationalDonors(2008, 2018);
+            //await MineCampaignExpenses(2008, 2018);
 
             Console.Write("Press any key to continue...");
             Console.ReadKey();
@@ -33,7 +33,7 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine("Loading donors...");
-            var donors = await TsvSerializer<Donor>.DeserializeAsync("Donors (2008-18).tsv");
+            var donors = await TsvSerializer<Donor>.DeserializeAsync("Donors (2008-2018).tsv");
             Console.WriteLine();
 
             Console.WriteLine($"Loading employers...");
@@ -41,7 +41,7 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine($"Writing lobby list...");
-            await TsvSerializer<Lobbyist>.SerializeAsync(lobbyists, "Lobbyists (2008-18).tsv");
+            await TsvSerializer<Lobbyist>.SerializeAsync(lobbyists, "Lobbyists (2008-2018).tsv");
             Console.WriteLine();
         }
 
@@ -72,12 +72,12 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine($"Writing donor list...");
-            await TsvSerializer<Donor>.SerializeAsync(donors, "Donors (2008-18).tsv");
+            await TsvSerializer<Donor>.SerializeAsync(donors, $"Donors ({start}-{end}).tsv");
             Console.WriteLine();
 
             Console.WriteLine($"Tallying contributions...");
             var scores = pdc.GetDonorTotals(donors, campaigns);
-            await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
+            await TsvSerializer<Tally>.SerializeAsync(scores, $"Scores ({start}-{end}).tsv");
             Console.WriteLine();
         }
 
@@ -110,12 +110,12 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine($"Writing donor list...");
-            await TsvSerializer<Donor>.SerializeAsync(donors, "Donors (2008-18).tsv");
+            await TsvSerializer<Donor>.SerializeAsync(donors, $"Donors ({start}-{end}).tsv");
             Console.WriteLine();
 
             Console.WriteLine($"Tallying contributions...");
             var scores = pdc.GetDonorTotals(donors, campaigns);
-            await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
+            await TsvSerializer<Tally>.SerializeAsync(scores, $"Scores ({start}-{end}).tsv");
             Console.WriteLine();
         }
 
@@ -234,12 +234,12 @@ namespace LobbyLeaders
             Console.WriteLine();
 
             Console.WriteLine($"Writing recipient list...");
-            await TsvSerializer<Recipient>.SerializeAsync(recipients, "Recipients (2008-18).tsv");
+            await TsvSerializer<Recipient>.SerializeAsync(recipients, $"Recipients ({start}-{end}).tsv");
             Console.WriteLine();
 
             Console.WriteLine($"Tallying contributions...");
             var scores = pdc.GetRecipientTotals(recipients, campaigns);
-            await TsvSerializer<Tally>.SerializeAsync(scores, "Scores (2008-18).tsv");
+            await TsvSerializer<Tally>.SerializeAsync(scores, $"Scores ({start}-{end}).tsv");
             Console.WriteLine();
         }
 
