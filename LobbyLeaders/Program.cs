@@ -16,8 +16,8 @@ namespace LobbyLeaders
         static async Task Main(string[] args)
         {
             //await MineCaucusMemberDonors(2018, "R", "Legislative");
-            //await MineCaucusDonors(2008, 2018);
-            await MineOrganizationalDonors(2008, 2018);
+            //await MineCaucusDonors(2008, 2019);
+            await MineOrganizationalDonors(2008, 2019, true);
             //await MineCampaignExpenses(2008, 2018);
 
             Console.Write("Press any key to continue...");
@@ -81,11 +81,12 @@ namespace LobbyLeaders
             Console.WriteLine();
         }
 
-        static async Task MineOrganizationalDonors(short start, short end)
+        static async Task MineOrganizationalDonors(short start, short end, bool summary)
         {
             var pdc = new PdcService();
             var contributions = new List<Contribution>();
             var campaigns = new List<Committee>();
+            var scores = new List<Tally>();
 
             for (var year = start; year <= end; ++year)
             {
@@ -113,8 +114,23 @@ namespace LobbyLeaders
             await TsvSerializer<Donor>.SerializeAsync(donors, $"Donors ({start}-{end}).tsv");
             Console.WriteLine();
 
-            Console.WriteLine($"Tallying contributions...");
-            var scores = pdc.GetDonorTotals(donors, campaigns);
+            if (summary)
+            {
+                Console.WriteLine($"Tallying contributions...");
+                scores.AddRange(pdc.GetDonorTotals(donors, campaigns));
+            }
+            else
+            {
+                Console.WriteLine($"Tallying contributions by year...");
+                for (short year = start; year <= end; ++year)
+                {
+                    Console.WriteLine($"  {year}...");
+
+                    scores.AddRange(pdc.GetDonorTotals(donors, campaigns, year, "Legislative", "Cash"));
+                    scores.AddRange(pdc.GetDonorTotals(donors, campaigns, year, "Statewide", "Cash"));
+                }
+            }
+
             await TsvSerializer<Tally>.SerializeAsync(scores, $"Scores ({start}-{end}).tsv");
             Console.WriteLine();
         }
@@ -171,7 +187,7 @@ namespace LobbyLeaders
             var pdc = new PdcService();
 
             Console.WriteLine($"Retrieving active campaigns:");
-            var campaigns = await pdc.GetCommittees(year, party, jurisdictionType);
+            var campaigns = await pdc.GetCommittees(year, party, null, jurisdictionType);
             var active = campaigns.Where(i => (i.primary_election_status == "Qualified for general" || i.primary_election_status == "Unopposed in primary"));
             foreach (var candidate in active)
                 await MineDonors(candidate.first_name, candidate.last_name, jurisdictionType);
@@ -237,7 +253,7 @@ namespace LobbyLeaders
             await TsvSerializer<Recipient>.SerializeAsync(recipients, $"Recipients ({start}-{end}).tsv");
             Console.WriteLine();
 
-            Console.WriteLine($"Tallying contributions...");
+            Console.WriteLine($"Tallying expenses...");
             var scores = pdc.GetRecipientTotals(recipients, campaigns);
             await TsvSerializer<Tally>.SerializeAsync(scores, $"Scores ({start}-{end}).tsv");
             Console.WriteLine();

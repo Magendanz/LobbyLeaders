@@ -253,58 +253,32 @@ namespace LobbyLeaders.Services
         }
 
 
-        public List<Tally> GetDonorSubtotals(IEnumerable<Donor> donors, short year, string jurisdictionType = null, string contributionType = null)
+        public List<Tally> GetDonorTotals(IEnumerable<Donor> donors, IEnumerable<Committee> committees, 
+            short year = 0, string jurisdictionType = null, string contributionType = null)
         {
             var result = new List<Tally>();
             foreach (var donor in donors)
             {
-                var contributions = donor.Contributions.Where(i => i.election_year == year
+                var contributions = donor.Contributions.Where(i => (year == 0 || i.election_year == year)
                 && (String.IsNullOrWhiteSpace(jurisdictionType) || i.jurisdiction_type == jurisdictionType)
                 && (String.IsNullOrWhiteSpace(contributionType) || i.cash_or_in_kind == contributionType)).ToList();
 
                 var count = contributions.Count();
                 if (count > 0)
                 {
-                    var total = contributions.Sum(i => i.amount);
-                    var rep = contributions.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount);
-                    var dem = contributions.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount);
+                    var filers = contributions.Select(i => i.filer_id).Distinct();
 
                     result.Add(new Tally
                     {
                         Id = donor.Id,
                         Year = year,
                         Jurisdiction = jurisdictionType,
-                        Count = count,
-                        Total = total,
-                        Republican = rep,
-                        Democrat = dem
-                    });
-                }
-            }
-
-            return result;
-        }
-
-        public List<Tally> GetDonorTotals(IEnumerable<Donor> donors, IEnumerable<Committee> committees)
-        {
-            var result = new List<Tally>();
-            foreach (var donor in donors)
-            {
-                var count = donor.Contributions.Count();
-                if (count > 0)
-                {
-                    var filers = donor.Contributions.Select(i => i.filer_id).Distinct();
-
-                    result.Add(new Tally
-                    {
-                        Id = donor.Id,
-                        Jurisdiction = "Partisan",
                         Count = filers.Count(),
                         Wins = filers.Count(i => Status(i, committees, "Won")),
                         Unopposed = filers.Count(i => Status(i, committees, "Unopposed")),
-                        Total = donor.Contributions.Sum(i => i.amount),
-                        Republican = donor.Contributions.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount),
-                        Democrat = donor.Contributions.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount)
+                        Total = contributions.Sum(i => i.amount),
+                        Republican = contributions.Where(i => i.party == "REPUBLICAN").Sum(i => i.amount),
+                        Democrat = contributions.Where(i => i.party == "DEMOCRAT").Sum(i => i.amount)
                     });
                 }
             }
