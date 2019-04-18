@@ -252,7 +252,6 @@ namespace LobbyLeaders.Services
             return result;
         }
 
-
         public List<Tally> GetDonorTotals(IEnumerable<Donor> donors, IEnumerable<Committee> committees, 
             short year = 0, string jurisdictionType = null, string contributionType = null)
         {
@@ -315,8 +314,8 @@ namespace LobbyLeaders.Services
 
         private bool Status(string filerId, IEnumerable<Committee> committees, string value)
         {
-            var campaign = committees.First(i => i.filer_id == filerId);
-            return campaign.general_election_status?.StartsWith(value) ?? false;
+            var campaign = committees.FirstOrDefault(i => i.filer_id == filerId);
+            return campaign?.general_election_status?.StartsWith(value) ?? false;
         }
     }
 

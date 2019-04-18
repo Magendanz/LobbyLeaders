@@ -100,6 +100,9 @@ namespace LobbyLeaders
                 Console.WriteLine("  Loading PACs...");
                 contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Legislative", null, "Cash"));
                 contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Statewide", null, "Cash"));
+                //Console.WriteLine("  Loading individuals...");
+                //contributions.AddRange(await pdc.GetContributionsByType(year, "Individual", "Legislative", null, "Cash"));
+                //contributions.AddRange(await pdc.GetContributionsByType(year, "Individual", "Statewide", null, "Cash"));
                 Console.WriteLine("  Loading campaigns...");
                 campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Legislative"));
                 campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Statewide"));
