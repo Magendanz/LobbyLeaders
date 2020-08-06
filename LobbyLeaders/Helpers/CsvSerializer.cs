@@ -26,6 +26,9 @@ namespace LobbyLeaders.Helpers
             }
         }
 
+        public static List<List<T>> Deserialize(string path)
+            => DeserializeAsync(path).Result;
+
         public static async Task<List<List<T>>> DeserializeAsync(string path)
         {
             using (var sr = new StreamReader(path))

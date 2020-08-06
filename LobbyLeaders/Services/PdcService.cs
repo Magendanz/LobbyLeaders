@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-
 using LobbyLeaders.Helpers;
 using LobbyLeaders.Models;
 
@@ -13,9 +14,11 @@ namespace LobbyLeaders.Services
 {
     public class PdcService
     {
-        HttpClient client = new HttpClient();
+        readonly HttpClient client = new HttpClient();
         readonly Uri baseUri = new Uri("https://data.wa.gov/resource/");
-        const short limit = Int16.MaxValue;
+        readonly Regex filter = new Regex(@"[^\w\s]+", RegexOptions.Compiled);
+        readonly Regex separator = new Regex(@"\s+", RegexOptions.Compiled);
+        const int limit = 262144;
 
         public async Task<List<Agent>> GetAgents(int? year = null)
         {
@@ -99,8 +102,8 @@ namespace LobbyLeaders.Services
 
         public int BestDonorMatch(string str, IEnumerable<Donor> donors)
         {
-            var match = donors.OrderByDescending(i => str.FuzzyMatch(i.Name)).First();
-            var strength = str.FuzzyMatch(match.Name);
+            var match = donors.OrderByDescending(i => str.KeywordMatch(i.Name)).First();
+            var strength = str.KeywordMatch(match.Name);
 
             return strength > 0.8 ? match.Id : 0;   // Adjust fuzzy match threshold here!
         }
@@ -192,70 +195,110 @@ namespace LobbyLeaders.Services
 
         public List<Donor> GetDonorsFromContributions(IEnumerable<Contribution> contributions)
         {
-            var result = new List<Donor>();
-            var index = 1;
+            var donors = new List<Donor>();
+            var count = contributions.Count();
+            int i = 0, j = 0;
 
-            var synonyms = CsvSerializer<string>.DeserializeAsync("Data/States.csv").Result;
-            synonyms.AddRange(CsvSerializer<string>.DeserializeAsync("Data/Organizations.csv").Result);
-            //synonyms.AddRange(CsvSerializer<string>.DeserializeAsync("/Data/Nicknames.csv").Result);
+            // Load up my dictinoary of canonized names
+            var table = CsvSerializer<string>.Deserialize("Data/Addresses.csv");
+            table.AddRange(CsvSerializer<string>.Deserialize("Data/Nicknames.csv"));
+            table.AddRange(CsvSerializer<string>.Deserialize("Data/Organizations.csv"));
+            var dict = table.ToDictionary(i => i[0], i => i[1]);
 
-            var comparer = new FuzzyComparer(0.8);
-            foreach (var group in contributions.GroupBy(i => i.contributor_name, comparer).ToList())
+            using (var progress = new ProgressBar())
             {
-                result.Add(new Donor
+                foreach (var item in contributions)
                 {
-                    // Create auto-increment primary key
-                    Id = index++,
+                    var desc = String.Join(' ', item.contributor_name, item.contributor_address, item.contributor_zip).ToUpper();
+                    var words = separator.Split(filter.Replace(desc, String.Empty)).Canonize(dict);
+                    var donor = donors.FirstOrDefault(d => d.Keywords.KeywordMatch(words) > 0.8);
+                    if (donor == null)
+                    {
+                        donor = new Donor
+                        {
+                            Id = ++i,       // Auto-increment primary key
+                            Name = item.contributor_name,
+                            Address = item.contributor_address,
+                            Zip = item.contributor_zip,
+                            Keywords = words,
+                            Contributions = new List<Contribution>()
+                        };
+                        donors.Add(donor);
+                    }
+                    donor.Contributions.Add(item);
+                    progress.Report((double) ++j / count);
+                }
 
+                foreach (var item in donors)
+                {
                     // Pick most frequently used contributor properties
-                    Name = group.MostCommon(i => i.contributor_name),
-                    Address = group.MostCommon(i => i.contributor_address),
-                    City = group.MostCommon(i => i.contributor_city),
-                    State = group.MostCommon(i => i.contributor_state),
-                    Zip = group.MostCommon(i => i.contributor_zip),
-                    Type = group.MostCommon(i => i.code),
-
-                    // Save the list of contributions from this donor
-                    Contributions = new List<Contribution>(group)
-                });
+                    item.Name = item.Contributions.MostCommon(i => i.contributor_name);
+                    item.Address = item.Contributions.MostCommon(i => i.contributor_address);
+                    item.City = item.Contributions.MostCommon(i => i.contributor_city);
+                    item.State = item.Contributions.MostCommon(i => i.contributor_state);
+                    item.Zip = item.Contributions.MostCommon(i => i.contributor_zip);
+                    item.Type = item.Contributions.MostCommon(i => i.code);
+                }
             }
 
-            return result;
+            return donors;
         }
 
         public List<Recipient> GetRecipientsFromExpenses(IEnumerable<Expenditure> expenses)
         {
-            var result = new List<Recipient>();
-            var index = 1;
+            var recipients = new List<Recipient>();
+            var count = expenses.Count();
+            int i = 0, j = 0;
 
-            var comparer = new FuzzyComparer(0.8);
-            foreach (var group in expenses.GroupBy(i => i.recipient_name, comparer).ToList())
+            // Load up my dictinoary of canonized names
+            var table = CsvSerializer<string>.Deserialize("Data/Addresses.csv");
+            table.AddRange(CsvSerializer<string>.Deserialize("Data/Nicknames.csv"));
+            table.AddRange(CsvSerializer<string>.Deserialize("Data/Organizations.csv"));
+            var dict = table.ToDictionary(i => i[0], i => i[1]);
+
+            using (var progress = new ProgressBar())
             {
-                result.Add(new Recipient
+                foreach (var item in expenses)
                 {
-                    // Create auto-increment primary key
-                    Id = index++,
+                    var desc = String.Join(' ', item.recipient_name, item.recipient_address, item.recipient_zip).ToUpper();
+                    var words = separator.Split(filter.Replace(desc, String.Empty)).Canonize(dict);
+                    var recipient = recipients.FirstOrDefault(r => r.Keywords.KeywordMatch(words) > 0.8);
+                    if (recipient == null)
+                    {
+                        recipient = new Recipient
+                        {
+                            Id = ++i,       // Auto-increment primary key
+                            Name = item.recipient_name,
+                            Address = item.recipient_address,
+                            Zip = item.recipient_zip,
+                            Keywords = words,
+                            Payments = new List<Expenditure>()
+                        };
+                        recipients.Add(recipient);
+                    }
+                    recipient.Payments.Add(item);
+                    progress.Report((double) ++j / count);
+                }
 
+                foreach (var item in recipients)
+                {
                     // Pick most frequently used contributor properties
-                    Name = group.MostCommon(i => i.recipient_name),
-                    Address = group.MostCommon(i => i.recipient_address),
-                    City = group.MostCommon(i => i.recipient_city),
-                    State = group.MostCommon(i => i.recipient_state),
-                    Zip = group.MostCommon(i => i.recipient_zip),
-                    Type = group.MostCommon(i => i.code),
-
-                    // Save the list of contributions from this donor
-                    Payments = new List<Expenditure>(group)
-                });
+                    item.Name = item.Payments.MostCommon(i => i.recipient_name);
+                    item.Address = item.Payments.MostCommon(i => i.recipient_address);
+                    item.City = item.Payments.MostCommon(i => i.recipient_city);
+                    item.State = item.Payments.MostCommon(i => i.recipient_state);
+                    item.Zip = item.Payments.MostCommon(i => i.recipient_zip);
+                    item.Type = item.Payments.MostCommon(i => i.code);
+                }
             }
 
-            return result;
+            return recipients;
         }
 
-        public List<Tally> GetDonorTotals(IEnumerable<Donor> donors, IEnumerable<Committee> committees, 
+        public List<Tally> GetDonorTotals(IEnumerable<Donor> donors, IEnumerable<Committee> committees,
             short year = 0, string jurisdictionType = null, string contributionType = null)
         {
-            var result = new List<Tally>();
+            var totals = new List<Tally>();
             foreach (var donor in donors)
             {
                 var contributions = donor.Contributions.Where(i => (year == 0 || i.election_year == year)
@@ -267,12 +310,13 @@ namespace LobbyLeaders.Services
                 {
                     var filers = contributions.Select(i => i.filer_id).Distinct();
 
-                    result.Add(new Tally
+                    totals.Add(new Tally
                     {
                         Id = donor.Id,
                         Year = year,
                         Jurisdiction = jurisdictionType,
-                        Count = filers.Count(),
+                        Contributions = contributions.Count(),
+                        Campaigns = filers.Count(),
                         Wins = filers.Count(i => Status(i, committees, "Won")),
                         Unopposed = filers.Count(i => Status(i, committees, "Unopposed")),
                         Total = contributions.Sum(i => i.amount),
@@ -282,12 +326,12 @@ namespace LobbyLeaders.Services
                 }
             }
 
-            return result;
+            return totals;
         }
 
         public List<Tally> GetRecipientTotals(IEnumerable<Recipient> recipients, IEnumerable<Committee> committees)
         {
-            var result = new List<Tally>();
+            var totals = new List<Tally>();
             foreach (var recipient in recipients)
             {
                 var count = recipient.Payments.Count();
@@ -295,11 +339,12 @@ namespace LobbyLeaders.Services
                 {
                     var filers = recipient.Payments.Select(i => i.filer_id).Distinct();
 
-                    result.Add(new Tally
+                    totals.Add(new Tally
                     {
                         Id = recipient.Id,
                         Jurisdiction = "Partisan",
-                        Count = filers.Count(),
+                        Contributions = recipient.Payments.Count(),
+                        Campaigns = filers.Count(),
                         Wins = filers.Count(i => Status(i, committees, "Won")),
                         Unopposed = filers.Count(i => Status(i, committees, "Unopposed")),
                         Total = recipient.Payments.Sum(i => i.amount),
@@ -309,46 +354,13 @@ namespace LobbyLeaders.Services
                 }
             }
 
-            return result;
+            return totals;
         }
 
         private bool Status(string filerId, IEnumerable<Committee> committees, string value)
         {
             var campaign = committees.FirstOrDefault(i => i.filer_id == filerId);
             return campaign?.general_election_status?.StartsWith(value) ?? false;
-        }
-    }
-
-
-    public class FuzzyComparer : IEqualityComparer<string>
-    {
-        readonly IEnumerable<IEnumerable<string>> _abbreviations;    // Table of known abbreviations or nicknames
-        readonly double _threshold;                                  // Fuzzy match threshold
-
-        public bool Equals(string strA, string strB)
-        {
-            if (_abbreviations != null)
-            {
-                var listA = strA.Variations(_abbreviations);
-                var listB = strB.Variations(_abbreviations);
-
-                foreach (var i in listA)
-                    foreach (var j in listB)
-                        if (i.FuzzyMatch(j) > _threshold)
-                            return true;
-
-                return false;
-            }
-            else
-                return strA.FuzzyMatch(strB) > _threshold;
-        }
-
-        public int GetHashCode(string str) => 0;            // Only executes Equals if two hash codes are equal, so we always return zero
-
-        public FuzzyComparer(double threshold, IEnumerable<IEnumerable<string>> abbreviations = null)
-        {
-            _abbreviations = abbreviations;
-            _threshold = threshold;
         }
     }
 }

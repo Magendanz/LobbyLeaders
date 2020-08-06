@@ -17,11 +17,11 @@ namespace LobbyLeaders
         {
             //await MineCaucusMemberDonors(2018, "R", "Legislative");
             //await MineCaucusDonors(2008, 2019);
-            await MineOrganizationalDonors(2008, 2019, true);
-            //await MineCampaignExpenses(2008, 2018);
-
-            Console.Write("Press any key to continue...");
-            Console.ReadKey();
+            //await MineCaucusExpenses(2008, 2019);
+            //await MineDonors(2008, 2019, new int[] { 5 });
+            await MineIndividuallDonors(2012, 2020, true);
+            //await MineOrganizationalDonors(2008, 2019, true);
+            //await MineCampaignExpenditures(2008, 2018);
         }
 
         static async Task BuildLobbyList()
@@ -51,7 +51,7 @@ namespace LobbyLeaders
             var contributions = new List<Contribution>();
             var campaigns = new List<Committee>();
 
-            for (var year = start; year <= end; ++year)
+            for (var year = start; year <= end; year++)
             {
                 Console.WriteLine($"Analyzing donations for {year}...");
                 Console.WriteLine("  Loading individuals...");
@@ -67,9 +67,9 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            Console.WriteLine("Normalizing donor names...");
+            Console.Write("Normalizing donor names...");
             var donors = pdc.GetDonorsFromContributions(contributions);
-            Console.WriteLine();
+            Console.WriteLine("Done.\n");
 
             Console.WriteLine($"Writing donor list...");
             await TsvSerializer<Donor>.SerializeAsync(donors, $"Donors ({start}-{end}).tsv");
@@ -88,29 +88,43 @@ namespace LobbyLeaders
             var campaigns = new List<Committee>();
             var scores = new List<Tally>();
 
-            for (var year = start; year <= end; ++year)
+            for (var year = start; year <= end; year++)
             {
                 Console.WriteLine($"Analyzing donations for {year}...");
                 Console.WriteLine("  Loading businesses...");
-                contributions.AddRange(await pdc.GetContributionsByType(year, "Business", "Legislative", null, "Cash"));
-                contributions.AddRange(await pdc.GetContributionsByType(year, "Business", "Statewide", null, "Cash"));
+                contributions.AddRange(await GetContributions(pdc, year, "Business", "Legislative"));
+                contributions.AddRange(await GetContributions(pdc, year, "Business", "Statewide"));
                 Console.WriteLine("  Loading unions...");
-                contributions.AddRange(await pdc.GetContributionsByType(year, "Union", "Legislative", null, "Cash"));
-                contributions.AddRange(await pdc.GetContributionsByType(year, "Union", "Statewide", null, "Cash"));
+                contributions.AddRange(await GetContributions(pdc, year, "Union", "Legislative"));
+                contributions.AddRange(await GetContributions(pdc, year, "Union", "Statewide"));
                 Console.WriteLine("  Loading PACs...");
-                contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Legislative", null, "Cash"));
-                contributions.AddRange(await pdc.GetContributionsByType(year, "Political Action Committee", "Statewide", null, "Cash"));
-                //Console.WriteLine("  Loading individuals...");
-                //contributions.AddRange(await pdc.GetContributionsByType(year, "Individual", "Legislative", null, "Cash"));
-                //contributions.AddRange(await pdc.GetContributionsByType(year, "Individual", "Statewide", null, "Cash"));
+                contributions.AddRange(await GetContributions(pdc, year, "Political Action Committee", "Legislative"));
+                contributions.AddRange(await GetContributions(pdc, year, "Political Action Committee", "Statewide"));
                 Console.WriteLine("  Loading campaigns...");
-                campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Legislative"));
-                campaigns.AddRange(await pdc.GetCommittees(year, null, null, "Statewide"));
+                campaigns.AddRange(await GetCampaigns(pdc, year, "Legislative"));
+                campaigns.AddRange(await GetCampaigns(pdc, year, "Statewide"));
             }
             Console.WriteLine();
 
-            Console.WriteLine("Normalizing donor names...");
+            var begin = DateTime.Now;
+            Console.Write("Normalizing donor names...");
             var donors = pdc.GetDonorsFromContributions(contributions);
+            Console.WriteLine("Done.");
+            Console.WriteLine($"Duration: {DateTime.Now - begin:T}\n");
+
+            Console.WriteLine($"Dumping donor groups...");
+            using (var sw = new StreamWriter("Donor Groups.txt"))
+            {
+                foreach (var donor in donors.OrderByDescending(i => i.Contributions.Count))
+                {
+                    await sw.WriteAsync($"{donor.Name} ({donor.Contributions.Count}), |");
+                    foreach (var word in donor.Keywords)
+                        await sw.WriteAsync($"{word}|");
+                    await sw.WriteLineAsync();
+                    foreach (var contribution in donor.Contributions)
+                        await sw.WriteLineAsync($" - {contribution.id}: {contribution.contributor_name}, {contribution.contributor_address} {contribution.contributor_zip}");
+                }
+            }
             Console.WriteLine();
 
             Console.WriteLine($"Writing donor list...");
@@ -125,7 +139,7 @@ namespace LobbyLeaders
             else
             {
                 Console.WriteLine($"Tallying contributions by year...");
-                for (short year = start; year <= end; ++year)
+                for (short year = start; year <= end; year++)
                 {
                     Console.WriteLine($"  {year}...");
 
@@ -138,6 +152,85 @@ namespace LobbyLeaders
             Console.WriteLine();
         }
 
+        static async Task MineIndividuallDonors(short start, short end, bool summary)
+        {
+            var pdc = new PdcService();
+            var contributions = new List<Contribution>();
+            var campaigns = new List<Committee>();
+            var scores = new List<Tally>();
+
+            for (var year = end; year >= start; year--)
+            {
+                Console.WriteLine($"Analyzing donations for {year}...");
+                Console.WriteLine("  Loading individuals...");
+                contributions.AddRange(await GetContributions(pdc, year, "Individual", "Legislative"));
+                contributions.AddRange(await GetContributions(pdc, year, "Individual", "Statewide"));
+                Console.WriteLine("  Loading campaigns...");
+                campaigns.AddRange(await GetCampaigns(pdc, year, "Legislative"));
+                campaigns.AddRange(await GetCampaigns(pdc, year, "Statewide"));
+            }
+            Console.WriteLine();
+
+            var begin = DateTime.Now;
+            Console.Write("Normalizing donor names...");
+            var donors = pdc.GetDonorsFromContributions(contributions);
+            Console.WriteLine("Done.");
+            Console.WriteLine($"Duration: {DateTime.Now - begin:T}\n");
+
+            Console.WriteLine($"Dumping donor groups...");
+            using (var sw = new StreamWriter("Donor Groups.txt"))
+            {
+                foreach (var donor in donors.OrderByDescending(i => i.Contributions.Count))
+                {
+                    await sw.WriteAsync($"{donor.Name} ({donor.Contributions.Count}), |");
+                    foreach (var word in donor.Keywords)
+                        await sw.WriteAsync($"{word}|");
+                    await sw.WriteLineAsync();
+                    foreach (var contribution in donor.Contributions)
+                        await sw.WriteLineAsync($" - {contribution.id}: {contribution.contributor_name}, {contribution.contributor_address} {contribution.contributor_zip}");
+                }
+            }
+            Console.WriteLine();
+
+            Console.WriteLine($"Writing donor list...");
+            await TsvSerializer<Donor>.SerializeAsync(donors, $"Donors ({start}-{end}).tsv");
+            Console.WriteLine();
+
+            if (summary)
+            {
+                Console.WriteLine($"Tallying contributions...");
+                scores.AddRange(pdc.GetDonorTotals(donors, campaigns));
+            }
+            else
+            {
+                Console.WriteLine($"Tallying contributions by year...");
+                for (short year = start; year <= end; year++)
+                {
+                    Console.WriteLine($"  {year}...");
+
+                    scores.AddRange(pdc.GetDonorTotals(donors, campaigns, year, "Legislative", "Cash"));
+                    scores.AddRange(pdc.GetDonorTotals(donors, campaigns, year, "Statewide", "Cash"));
+                }
+            }
+
+            await TsvSerializer<Tally>.SerializeAsync(scores, $"Scores ({start}-{end}).tsv");
+            Console.WriteLine();
+        }
+
+        static async Task<List<Contribution>> GetContributions(PdcService pdc, short year, string entityType, string jurisdictionType)
+        {
+            var result = await pdc.GetContributionsByType(year, entityType, jurisdictionType, null, "Cash");
+            Console.WriteLine($"    {jurisdictionType}: {result.Count}");
+            return result;
+        }
+
+        static async Task<List<Committee>> GetCampaigns(PdcService pdc, short year, string jurisdictionType)
+        {
+            var result = await pdc.GetCommittees(year, null, null, jurisdictionType);
+            Console.WriteLine($"    {jurisdictionType}: {result.Count}");
+            return result;
+        }
+
         static async Task MineCaucusDonors(short start, short end)
         {
             await MineDonors(start, end, "HOUSRO%20507", "HROC");
@@ -147,7 +240,21 @@ namespace LobbyLeaders
             await MineDonors(start, end, "SENARC%20148", "SRCC");
             await MineDonors(start, end, "LEADC%20%20148", "Leadership Council");
             await MineDonors(start, end, "SENADC%20507", "SDCC");
+            await MineDonors(start, end, "WASHSD%20101", "SDCC2");
             await MineDonors(start, end, "HARRTF%20506", "Kennedy Fund");
+        }
+
+        static async Task MineCaucusExpenses(short start, short end)
+        {
+            await MineExpenses(start, end, "HOUSRO%20507", "HROC");
+            await MineExpenses(start, end, "REAGF%20%20507", "Reagan Fund");
+            await MineExpenses(start, end, "HOUSDC%20507", "HDCC");
+            await MineExpenses(start, end, "HARRTF%20506", "Harry Truman Fund");
+            await MineExpenses(start, end, "SENARC%20148", "SRCC");
+            await MineExpenses(start, end, "LEADC%20%20148", "Leadership Council");
+            await MineExpenses(start, end, "SENADC%20507", "SDCC");
+            await MineExpenses(start, end, "WASHSD%20101", "SDCC2");
+            await MineExpenses(start, end, "HARRTF%20506", "Kennedy Fund");
         }
 
         static async Task MineDonors(short start, short end, string filer, string desc)
@@ -156,29 +263,64 @@ namespace LobbyLeaders
             var contributions = new List<Contribution>();
 
             Console.WriteLine($"Mining donors for {desc}:");
-            for (var year = start; year <= end; ++year)
+            for (var year = start; year <= end; year++)
             {
                 Console.WriteLine($"  Analyzing donations for {year}...");
                 contributions.AddRange(await pdc.GetContributions(year, filer));
             }
             Console.WriteLine();
 
-            Console.WriteLine("Normalizing donor names...");
+            Console.Write("Normalizing donor names...");
             var donors = pdc.GetDonorsFromContributions(contributions);
-            Console.WriteLine();
+            Console.WriteLine("Done.\n");
 
             Console.WriteLine($"Tallying contributions...");
-            var sb = new StringBuilder("Contibutor");
-            for (var year = start; year <= end; ++year)
+            var sb = new StringBuilder("Contibutor\tType");
+            for (var year = start; year <= end; year++)
                 sb.Append($"\t{year}");
             sb.Append("\tTotal");
 
             foreach (var donor in donors)
             {
-                sb.Append($"\n{donor.Name}");
-                for (var year = start; year <= end; ++year)
+                sb.Append($"\n{donor.Name}\t{donor.Type}");
+                for (var year = start; year <= end; year++)
                     sb.Append($"\t{donor.Contributions.Where(i => i.election_year == year).Sum(j => j.amount)}");
                 sb.Append($"\t{donor.Contributions.Sum(i => i.amount)}");
+            }
+
+            File.WriteAllText($"{desc} ({start}-{end % 100}).tsv", sb.ToString());
+            Console.WriteLine();
+        }
+
+        static async Task MineExpenses(short start, short end, string filer, string desc)
+        {
+            var pdc = new PdcService();
+            var expenses = new List<Expenditure>();
+
+            Console.WriteLine($"Mining donors for {desc}:");
+            for (var year = start; year <= end; year++)
+            {
+                Console.WriteLine($"  Analyzing expenditures for {year}...");
+                expenses.AddRange(await pdc.GetExpenditures(year, filer));
+            }
+            Console.WriteLine();
+
+            Console.Write("Normalizing recipient names...");
+            var recipients = pdc.GetRecipientsFromExpenses(expenses);
+            Console.WriteLine("Done.\n");
+
+            Console.WriteLine("Tallying expenses...");
+            var sb = new StringBuilder("Recipient\tType");
+            for (var year = start; year <= end; ++year)
+                sb.Append($"\t{year}");
+            sb.Append("\tTotal");
+
+            foreach (var recipeint in recipients)
+            {
+                sb.Append($"\n{recipeint.Name}\t{recipeint.Type}");
+                for (var year = start; year <= end; year++)
+                    sb.Append($"\t{recipeint.Payments.Where(i => i.election_year == year).Sum(j => j.amount)}");
+                sb.Append($"\t{recipeint.Payments.Sum(i => i.amount)}");
             }
 
             File.WriteAllText($"{desc} ({start}-{end % 100}).tsv", sb.ToString());
@@ -212,9 +354,9 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            Console.WriteLine("Normalizing donor names...");
+            Console.Write("Normalizing donor names...");
             var donors = pdc.GetDonorsFromContributions(contributions);
-            Console.WriteLine();
+            Console.WriteLine("Done.\n");
 
             Console.WriteLine($"Tallying contributions...");
             var sb = new StringBuilder("Contributor");
@@ -240,7 +382,7 @@ namespace LobbyLeaders
             var expenses = new List<Expenditure>();
             var campaigns = new List<Committee>();
 
-            for (var year = start; year <= end; ++year)
+            for (var year = start; year <= end; year++)
             {
                 Console.WriteLine($"Analyzing expenses for {year}...");
                 expenses.AddRange(await pdc.GetExpensesByType(year, "Candidate", null, "Legislative"));
@@ -248,19 +390,18 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            Console.WriteLine("Normalizing recipient names...");
+            Console.Write("Normalizing recipient names...");
             var recipients = pdc.GetRecipientsFromExpenses(expenses);
-            Console.WriteLine();
+            Console.WriteLine("Done.\n");
 
-            Console.WriteLine($"Writing recipient list...");
+            Console.WriteLine("Writing recipient list...");
             await TsvSerializer<Recipient>.SerializeAsync(recipients, $"Recipients ({start}-{end}).tsv");
             Console.WriteLine();
 
-            Console.WriteLine($"Tallying expenses...");
+            Console.WriteLine("Tallying expenses...");
             var scores = pdc.GetRecipientTotals(recipients, campaigns);
             await TsvSerializer<Tally>.SerializeAsync(scores, $"Scores ({start}-{end}).tsv");
             Console.WriteLine();
         }
-
     }
 }

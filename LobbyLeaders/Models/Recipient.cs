@@ -15,5 +15,7 @@ namespace LobbyLeaders.Models
         public string Zip { get; set; }
 
         public List<Expenditure> Payments;
+
+        public string[] Keywords { get; set; }
     }
 }

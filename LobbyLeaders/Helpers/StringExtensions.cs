@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -11,26 +12,19 @@ namespace LobbyLeaders.Helpers
     /// </summary>
     public static class StringExtensions
     {
-        public static double FuzzyMatch(this string strA, string strB)
+        public static double KeywordMatch(this string strA, string strB)
+            => strA.KeywordMatch(strB.Split());
+
+        public static double KeywordMatch(this string str, string[] keywords)
+            => str.Split().KeywordMatch(keywords);
+
+        public static double KeywordMatch(this string[] words, string[] keywords)
         {
-            if (String.IsNullOrWhiteSpace(strA) || String.IsNullOrWhiteSpace(strB))
-                return Double.NaN;
-
-            // Split strings into trigrams
-            var aGrams = SplitTrigrams(strA);
-            var bGrams = SplitTrigrams(strB);
-
-            // Count number of matches
-            var result = 0d;
-            foreach (var item in bGrams)
-                if (aGrams.Contains(item))
-                    ++result;
-
-            // Note: This is different that standard normalized form, as it ignores extra trigrams
-            return result / Math.Min(aGrams.Count, bGrams.Count);
+            var len = Math.Min(words.Length, keywords.Length);
+            return len > 0 ? (double)words.Count(i => keywords.Contains(i)) / len : 0d;
         }
 
-        public static List<string> SplitTrigrams(this string str)
+        public static string[] SplitTrigrams(this string str)
         {
             if (String.IsNullOrWhiteSpace(str))
                 return null;
@@ -41,48 +35,19 @@ namespace LobbyLeaders.Helpers
             for (var i = 0; i < str.Length - 2; ++i)
                 result.Add(str.Substring(i, 3));
 
-            return result;
+            return result.ToArray();
         }
 
-        public static List<string> Variations(this string str, IEnumerable<IEnumerable<string>> abbreviations)
+        public static string[] Canonize(this string[] words, Dictionary<string, string> dict)
         {
-            var words = str.ToAlphaNumeric().Trim().Split();
-            var table = new List<List<string>>();
-
-            foreach (var word in words)
+            // Replace abbreviations, aliases and nicknames with canonical names
+            for (int i = 0; i < words.Length; i++)
             {
-                var matches = new List<string>();
-                matches.Add(word);
-
-                foreach (var list in abbreviations)
-                    foreach (var item in list)
-                        if (String.Equals(item, word, StringComparison.OrdinalIgnoreCase))
-                            matches.AddRange(list);
-
-                table.Add(matches.Distinct().ToList());      // Eliminate duplicates
+                string value;
+                if (dict.TryGetValue(words[i], out value))
+                    words[i] = value;
             }
-
-            return Permutations(table);
-        }
-
-        private static List<string> Permutations(List<List<string>> table)
-        {
-            var list = table[0];
-            table.RemoveAt(0);
-
-            if (table.Count > 0)
-            {
-                var remnent = Permutations(table);
-                var results = new List<string>();
-
-                foreach (var word in list)
-                    foreach (var item in remnent)
-                        results.Add($"{word} {item}");
-
-                return results;
-            }
-            else
-                return list;
+            return words.Distinct().ToArray();
         }
 
         public static bool Contains(this string str, string value, StringComparison comparisonType)

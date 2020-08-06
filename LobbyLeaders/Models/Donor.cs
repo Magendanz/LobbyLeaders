@@ -15,5 +15,7 @@ namespace LobbyLeaders.Models
         public string Zip { get; set; }
 
         public List<Contribution> Contributions;
+
+        public string[] Keywords { get; set; }
     }
 }

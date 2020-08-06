@@ -10,7 +10,7 @@ namespace LobbyLeaders.Helpers
         {
             var groups = source.GroupBy(selector).OrderByDescending(i => i.Count());
             foreach (var group in groups)
-                if (group.Key != default)
+                if (group.Key != null)
                     return group.Key;
 
             return default;

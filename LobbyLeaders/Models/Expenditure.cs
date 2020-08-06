@@ -36,5 +36,8 @@ namespace LobbyLeaders.Models
         public string recipient_city { get; set; }
         public string recipient_state { get; set; }
         public string recipient_zip { get; set; }
+
+        public string Description
+            => String.Join(' ', recipient_name, recipient_address, recipient_zip);
     }
 }
