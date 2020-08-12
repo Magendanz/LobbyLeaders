@@ -19,9 +19,9 @@ namespace LobbyLeaders
             //await MineCaucusDonors(2008, 2019);
             //await MineCaucusExpenses(2008, 2019);
             //await MineDonors(2008, 2019, new int[] { 5 });
-            await MineOrganizationalDonors(2020, 2020, true);
-            //await MineIndividuallDonors(2020, 2020, true);
-            //await MineCampaignExpenditures(2008, 2018);
+            //await MineOrganizationalDonors(2012, 2020, true);
+            //await MineIndividuallDonors(2012, 2020, true);
+            await MineCampaignExpenditures(2012, 2020);
         }
 
         static async Task BuildLobbyList()
@@ -376,23 +376,42 @@ namespace LobbyLeaders
             Console.WriteLine();
         }
 
-        static async Task MineCampaignExpenses(short start, short end)
+        static async Task MineCampaignExpenditures(short start, short end)
         {
             var pdc = new PdcService();
             var expenses = new List<Expenditure>();
             var campaigns = new List<Committee>();
 
-            for (var year = start; year <= end; year++)
+            for (var year = end; year >= start; year--)
             {
-                Console.WriteLine($"Analyzing expenses for {year}...");
+                Console.WriteLine($"Analyzing expenditures for {year}...");
+                Console.WriteLine("  Loading expenses...");
                 expenses.AddRange(await pdc.GetExpensesByType(year, "Candidate", null, "Legislative"));
+                expenses.AddRange(await pdc.GetExpensesByType(year, "Candidate", null, "Statewide"));
+                Console.WriteLine("  Loading campaigns...");
                 campaigns.AddRange(await pdc.GetCommittees(year, null, "Candidate", "Legislative"));
+                campaigns.AddRange(await pdc.GetCommittees(year, null, "Candidate", "Statewide"));
             }
             Console.WriteLine();
 
             Console.Write("Normalizing recipient names...");
             var recipients = pdc.GetRecipientsFromExpenses(expenses);
             Console.WriteLine("Done.\n");
+
+            Console.WriteLine($"Dumping donor groups...");
+            using (var sw = new StreamWriter("Donor Groups.txt"))
+            {
+                foreach (var recipient in recipients.OrderByDescending(i => i.Payments.Count))
+                {
+                    await sw.WriteAsync($"{recipient.Name} ({recipient.Payments.Count}), |");
+                    foreach (var word in recipient.Keywords)
+                        await sw.WriteAsync($"{word}|");
+                    await sw.WriteLineAsync();
+                    foreach (var expense in recipient.Payments)
+                        await sw.WriteLineAsync($" - {expense.id}: {expense.recipient_name}, {expense.recipient_address} {expense.recipient_zip}");
+                }
+            }
+            Console.WriteLine();
 
             Console.WriteLine("Writing recipient list...");
             await TsvSerializer<Recipient>.SerializeAsync(recipients, $"Recipients ({start}-{end}).tsv");
