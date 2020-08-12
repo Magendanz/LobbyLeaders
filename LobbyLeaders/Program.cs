@@ -19,8 +19,8 @@ namespace LobbyLeaders
             //await MineCaucusDonors(2008, 2019);
             //await MineCaucusExpenses(2008, 2019);
             //await MineDonors(2008, 2019, new int[] { 5 });
-            await MineIndividuallDonors(2012, 2020, true);
-            //await MineOrganizationalDonors(2008, 2019, true);
+            await MineOrganizationalDonors(2020, 2020, true);
+            //await MineIndividuallDonors(2020, 2020, true);
             //await MineCampaignExpenditures(2008, 2018);
         }
 

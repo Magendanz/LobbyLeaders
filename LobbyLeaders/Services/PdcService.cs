@@ -16,8 +16,6 @@ namespace LobbyLeaders.Services
     {
         readonly HttpClient client = new HttpClient();
         readonly Uri baseUri = new Uri("https://data.wa.gov/resource/");
-        readonly Regex filter = new Regex(@"[^\w\s]+", RegexOptions.Compiled);
-        readonly Regex separator = new Regex(@"\s+", RegexOptions.Compiled);
         const int limit = 262144;
 
         public async Task<List<Agent>> GetAgents(int? year = null)
@@ -209,9 +207,9 @@ namespace LobbyLeaders.Services
             {
                 foreach (var item in contributions)
                 {
-                    var desc = String.Join(' ', item.contributor_name, item.contributor_address, item.contributor_zip).ToUpper();
-                    var words = separator.Split(filter.Replace(desc, String.Empty)).Canonize(dict);
-                    var donor = donors.FirstOrDefault(d => d.Keywords.KeywordMatch(words) > 0.8);
+                    var desc = String.Join(' ', item.contributor_name, item.contributor_address, item.contributor_zip);
+                    var words = KeywordParser.Parse(desc).Canonize(dict);
+                    var donor = BestDonorMatch(donors, words, 0.8);
                     if (donor == null)
                     {
                         donor = new Donor
@@ -244,6 +242,23 @@ namespace LobbyLeaders.Services
             return donors;
         }
 
+        private Donor BestDonorMatch(IEnumerable<Donor> donors, string[] keywords, double threshold)
+        {
+            Donor result = null;
+            double max = 0;
+            foreach(var donor in donors)
+            {
+                var match = donor.Keywords.KeywordMatch(keywords);
+                if (match > max)
+                {
+                    max = match;
+                    result = donor;
+                }
+            }
+
+            return max > threshold ? result: null;
+        }
+
         public List<Recipient> GetRecipientsFromExpenses(IEnumerable<Expenditure> expenses)
         {
             var recipients = new List<Recipient>();
@@ -260,8 +275,8 @@ namespace LobbyLeaders.Services
             {
                 foreach (var item in expenses)
                 {
-                    var desc = String.Join(' ', item.recipient_name, item.recipient_address, item.recipient_zip).ToUpper();
-                    var words = separator.Split(filter.Replace(desc, String.Empty)).Canonize(dict);
+                    var desc = String.Join(' ', item.recipient_name, item.recipient_address, item.recipient_zip);
+                    var words = KeywordParser.Parse(desc).Canonize(dict);
                     var recipient = recipients.FirstOrDefault(r => r.Keywords.KeywordMatch(words) > 0.8);
                     if (recipient == null)
                     {
