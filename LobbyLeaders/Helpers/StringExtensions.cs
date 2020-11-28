@@ -21,7 +21,7 @@ namespace LobbyLeaders.Helpers
         public static double KeywordMatch(this string[] words, string[] keywords)
         {
             var len = Math.Min(words.Length, keywords.Length);
-            return len > 0 ? (double)words.Count(i => keywords.Contains(i)) / len : 0d;
+            return len > 0 ? (double)words.Count(i => keywords.Contains(i)) / len : 0.0;
         }
 
         public static string[] SplitTrigrams(this string str)
@@ -38,16 +38,15 @@ namespace LobbyLeaders.Helpers
             return result.ToArray();
         }
 
-        public static string[] Canonize(this string[] words, Dictionary<string, string> dict)
+        public static string[] Canonize(this string[] words, IDictionary<string, string> dict)
         {
             // Replace abbreviations, aliases and nicknames with canonical names
             for (int i = 0; i < words.Length; i++)
             {
-                string value;
-                if (dict.TryGetValue(words[i], out value))
+                if (dict.TryGetValue(words[i], out string value))
                     words[i] = value;
             }
-            return words.Distinct().ToArray();
+            return words;
         }
 
         public static bool Contains(this string str, string value, StringComparison comparisonType)

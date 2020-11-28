@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -14,6 +15,28 @@ namespace LobbyLeaders.Helpers
                     return group.Key;
 
             return default;
+        }
+
+        public static IEnumerable<TSource> DistinctBy<TSource, TKey>
+            (this IEnumerable<TSource> source, Func<TSource, TKey> keySelector)
+        {
+            HashSet<TKey> seenKeys = new HashSet<TKey>();
+            foreach (TSource element in source)
+            {
+                if (seenKeys.Add(keySelector(element)))
+                {
+                    yield return element;
+                }
+            }
+        }
+
+        public static Hashtable ToHashtable(this IEnumerable<KeyValuePair<string, object>> source)
+        {
+            var result = new Hashtable();
+            foreach (var item in source)
+                result.Add(item.Key, item.Value);
+
+            return result;
         }
     }
 }
