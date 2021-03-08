@@ -38,17 +38,6 @@ namespace LobbyLeaders.Helpers
             return result.ToArray();
         }
 
-        public static string[] Canonize(this string[] words, IDictionary<string, string> dict)
-        {
-            // Replace abbreviations, aliases and nicknames with canonical names
-            for (int i = 0; i < words.Length; i++)
-            {
-                if (dict.TryGetValue(words[i], out string value))
-                    words[i] = value;
-            }
-            return words;
-        }
-
         public static bool Contains(this string str, string value, StringComparison comparisonType)
             => str.IndexOf(value, comparisonType) >= 0;
 

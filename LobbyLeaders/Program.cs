@@ -22,10 +22,11 @@ namespace LobbyLeaders
             //await MineCaucusPacDonors(2008, 2020);
             //await MineCaucusPacExpenses(2008, 2020);
             //await MineCaucusMemberDonors(2008, 2020, "R");
-            await MineDistrictDonors(2008, 2020, 2, 5, 10, 13, 19, 25, 26, 28);
-            await MineOrganizationalDonors(2008, 2020);
-            await MineIndividuallDonors(2008, 2020);
-            await MineCampaignExpenses(2008, 2020);
+            //await MineDistrictDonors(2008, 2020, 2, 5, 10, 13, 19, 25, 26, 28);
+            //await MineOrganizationalDonors(2008, 2020);
+            //await MineIndividuallDonors(2008, 2020);
+            //await MineCampaignExpenses(2008, 2020);
+            //await MineOrganizationalRecipients(2008, 2020, "WEA");
         }
 
         static async Task MineOrganizationalDonors(short start, short end)
@@ -48,6 +49,28 @@ namespace LobbyLeaders
 
             var donors = AggregateTransactions(contributions);
             await GenerateReport(donors, start, end, "Organizational Donors", true);
+        }
+
+        static async Task MineOrganizationalRecipients(short start, short end, string description)
+        {
+            var contributions = new List<Contribution>();
+            for (var year = end; year >= start; year--)
+            {
+                Console.WriteLine($"Analyzing donations for {year}...");
+                Console.WriteLine("  Loading businesses...");
+                contributions.AddRange(await GetContributions(year, "Business", "Legislative"));
+                contributions.AddRange(await GetContributions(year, "Business", "Statewide"));
+                Console.WriteLine("  Loading unions...");
+                contributions.AddRange(await GetContributions(year, "Union", "Legislative"));
+                contributions.AddRange(await GetContributions(year, "Union", "Statewide"));
+                Console.WriteLine("  Loading PACs...");
+                contributions.AddRange(await GetContributions(year, "Political Action Committee", "Legislative"));
+                contributions.AddRange(await GetContributions(year, "Political Action Committee", "Statewide"));
+            }
+            Console.WriteLine();
+
+            var recipients = FilterTransactions(contributions, description, 0.8);
+            GenerateFilerReport(recipients, start, end, description + " Recipients");
         }
 
         static async Task MineIndividuallDonors(short start, short end)
@@ -196,19 +219,20 @@ namespace LobbyLeaders
             int i = 0;
 
             // Load up our dictinoary of canonized names
-            var dict = DataTable.New.ReadCsv("Data/Aliases.csv").ToDictionary<string, string>("Key", "Value");
+            var wordParser = new KeywordParser("Data/Aliases.csv");
 
             using (var progress = new ProgressBar())
             {
                 Console.Write("Aggregating transactions...");
                 foreach (var item in transactions)
                 {
-                    var words = KeywordParser.Parse(item.Description).Canonize(dict);
+                    var words = wordParser.Parse(item.Description);
                     if (words.Length > 0)
                     {
                         var entity = BestEntityMatch(results, words, 0.8);
                         if (entity == null)
                         {
+                            // If no good entity match, create a new one
                             entity = new Entity
                             {
                                 Keywords = words,
@@ -248,6 +272,43 @@ namespace LobbyLeaders
 
             // Return best match only if it meets threshold
             return max >= threshold ? result : null;
+        }
+
+        static IList<Entity> FilterTransactions(IEnumerable<Transaction> transactions, string description, double threshold)
+        {
+            // Load up our dictinoary of canonized names
+            var wordParser = new KeywordParser("Data/Aliases.csv");
+            var keywords = wordParser.Parse(description);
+
+            var matches = new List<Transaction>();
+            Console.WriteLine("Filtering transactions...");
+            foreach (var item in transactions)
+            {
+                if (String.IsNullOrWhiteSpace(item.Name))
+                    continue;
+
+                var words = wordParser.Parse(item.Name);
+                if (words.Length > 0 && words.KeywordMatch(keywords) >= threshold)
+                    matches.Add(item);
+            }
+
+            var results = new List<Entity>();
+            Console.WriteLine("Aggregating transactions...");
+            var groups = matches.GroupBy(i => i.filer_id);
+            foreach (var group in groups)
+            {
+                var entity = new Entity
+                {
+                    Keywords = keywords,
+                    Transactions = group.ToList()
+                };
+                results.Add(entity);
+            }
+
+#if DEBUG
+            DumpEntities(results);
+#endif
+            return results;
         }
 
         static void DumpEntities(IList<Entity> entities)
@@ -301,6 +362,25 @@ namespace LobbyLeaders
                 dt.CreateColumn("Wins").Values = entities.Select(i => CampaignCount(i.Transactions, campaigns, "Won")).ToArray();
                 dt.CreateColumn("Unopposed").Values = entities.Select(i => CampaignCount(i.Transactions, campaigns, "Unopposed")).ToArray();
             }
+
+            dt.SaveCSV($"Output/{desc} ({start}-{end % 100}).csv");
+            Console.WriteLine();
+        }
+
+        static void GenerateFilerReport(IList<Entity> entities, short start, short end, string desc)
+        {
+            Console.WriteLine($"Generating report...");
+            var dt = NewDataTable("Campaign", entities.Select(i => i.Transactions.First().filer_name));
+            dt.CreateColumn("Type").Values = entities.Select(i => i.Transactions.First().jurisdiction_type).ToArray();
+            dt.CreateColumn("Party").Values = entities.Select(i => i.Transactions.First().party).ToArray();
+            dt.CreateColumn("Count").Values = entities.Select(i => $"{i.Transactions.Count()}").ToArray();
+            for (var year = start; year <= end; year++)
+            {
+                var values = entities.Select(i => i.Transactions.Where(j => j.election_year == year).Sum(k => k.amount));
+                if (values.Sum() > 0)
+                    dt.CreateColumn($"{year}").Values = values.Select(i => $"{i:C}").ToArray();
+            }
+            dt.CreateColumn("Total").Values = entities.Select(i => $"{i.Transactions.Sum(j => j.amount):C}").ToArray();
 
             dt.SaveCSV($"Output/{desc} ({start}-{end % 100}).csv");
             Console.WriteLine();
