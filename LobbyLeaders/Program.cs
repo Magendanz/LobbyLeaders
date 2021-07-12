@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Schema;
@@ -27,6 +29,7 @@ namespace LobbyLeaders
             //await MineIndividuallDonors(2008, 2020);
             //await MineCampaignExpenses(2008, 2020);
             //await MineOrganizationalRecipients(2008, 2020, "WEA");
+            await MineCampaignsRaisedByType(2020, 2020, null, "Legislative");
         }
 
         static async Task MineOrganizationalDonors(short start, short end)
@@ -47,8 +50,8 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            var donors = AggregateTransactions(contributions);
-            await GenerateReport(donors, start, end, "Organizational Donors", true);
+            var donors = AggregateTransactionsByDonor(contributions);
+            await GenerateDonorReport(donors, start, end, "Organizational Donors", true);
         }
 
         static async Task MineOrganizationalRecipients(short start, short end, string description)
@@ -85,8 +88,8 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            var donors = AggregateTransactions(contributions);
-            await GenerateReport(donors, start, end, "Individual Donors", true);
+            var donors = AggregateTransactionsByDonor(contributions);
+            await GenerateDonorReport(donors, start, end, "Individual Donors", true);
         }
 
         static async Task MineCampaignExpenses(short start, short end)
@@ -100,8 +103,8 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            var recipients = AggregateTransactions(expenses);
-            await GenerateReport(recipients, start, end, "Campaign Expenditures", true);
+            var recipients = AggregateTransactionsByDonor(expenses);
+            await GenerateDonorReport(recipients, start, end, "Campaign Expenditures", true);
         }
 
         static async Task MineDistrictDonors(short start, short end, params int[] districts)
@@ -160,8 +163,8 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            var donors = AggregateTransactions(contributions);
-            await GenerateReport(donors, start, end, desc);
+            var donors = AggregateTransactionsByDonor(contributions);
+            await GenerateDonorReport(donors, start, end, desc);
         }
 
         static async Task MineExpenses(short start, short end, string desc, string filer)
@@ -176,8 +179,8 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            var recipients = AggregateTransactions(expenses);
-            await GenerateReport(recipients, start, end, desc);
+            var recipients = AggregateTransactionsByDonor(expenses);
+            await GenerateDonorReport(recipients, start, end, desc);
         }
 
         static async Task MineDonorsByType(short start, short end, string desc, string entityType = null, string jurisdictionType = null, string legislativeDistrict = null, string contributionType = null)
@@ -192,8 +195,26 @@ namespace LobbyLeaders
             }
             Console.WriteLine();
 
-            var donors = AggregateTransactions(contributions);
-            await GenerateReport(donors, start, end, desc, true);
+            var donors = AggregateTransactionsByDonor(contributions);
+            await GenerateDonorReport(donors, start, end, desc, true);
+
+            Console.WriteLine();
+        }
+
+        static async Task MineCampaignsRaisedByType(short start, short end, string entityType = null, string jurisdictionType = null)
+        {
+            var contributions = new List<Contribution>();
+
+            Console.WriteLine($"Mining campaign contributions:");
+            for (var year = end; year >= start; year--)
+            {
+                Console.WriteLine($"  Analyzing donations for {year}...");
+                contributions.AddRange(await GetContributions(year, entityType, jurisdictionType));
+            }
+            Console.WriteLine();
+
+            var campaigns = AggregateTransactionsByCampaign(contributions);
+            GenerateFilerReport(campaigns, start, end, entityType + "Raised by Type");
 
             Console.WriteLine();
         }
@@ -212,7 +233,7 @@ namespace LobbyLeaders
             return result;
         }
 
-        static List<Entity> AggregateTransactions(IEnumerable<Transaction> transactions)
+        static List<Entity> AggregateTransactionsByDonor(IEnumerable<Transaction> transactions)
         {
             var results = new List<Entity>();
             var count = transactions.Count();
@@ -249,6 +270,17 @@ namespace LobbyLeaders
                 DumpEntities(results);
 #endif
             }
+
+            return results;
+        }
+
+        static List<Entity> AggregateTransactionsByCampaign(IEnumerable<Transaction> transactions)
+        {
+            var results = new List<Entity>();
+
+            var groups = transactions.GroupBy(i => i.filer_id);
+            foreach (var group in groups)
+                results.Add(new Entity { Transactions = group.ToList() });
 
             return results;
         }
@@ -329,7 +361,7 @@ namespace LobbyLeaders
             Console.WriteLine();
         }
 
-        static async Task GenerateReport(IList<Entity> entities, short start, short end, string desc, bool analysis = false)
+        static async Task GenerateDonorReport(IList<Entity> entities, short start, short end, string desc, bool analysis = false)
         {
             Console.WriteLine($"Generating report...");
             var dt = NewDataTable("Name", entities.Select(i => i.Transactions.MostCommon(j => j.Name)));
@@ -369,16 +401,24 @@ namespace LobbyLeaders
 
         static void GenerateFilerReport(IList<Entity> entities, short start, short end, string desc)
         {
+            string[] codes = { "Individual", "Business", "Union", "Political Action Committee", "Party", "Caucus", "Self", "Other" };
+
             Console.WriteLine($"Generating report...");
             var dt = NewDataTable("Campaign", entities.Select(i => i.Transactions.First().filer_name));
             dt.CreateColumn("Type").Values = entities.Select(i => i.Transactions.First().jurisdiction_type).ToArray();
-            dt.CreateColumn("Party").Values = entities.Select(i => i.Transactions.First().party).ToArray();
+            dt.CreateColumn("Pty").Values = entities.Select(i => i.Transactions.First().party).ToArray();
             dt.CreateColumn("Count").Values = entities.Select(i => $"{i.Transactions.Count()}").ToArray();
             for (var year = start; year <= end; year++)
             {
                 var values = entities.Select(i => i.Transactions.Where(j => j.election_year == year).Sum(k => k.amount));
                 if (values.Sum() > 0)
                     dt.CreateColumn($"{year}").Values = values.Select(i => $"{i:C}").ToArray();
+            }
+            foreach (var code in codes)
+            {
+                var values = entities.Select(i => i.Transactions.Where(j => j.code == code).Sum(k => k.amount));
+                if (values.Sum() > 0)
+                    dt.CreateColumn($"{code}").Values = values.Select(i => $"{i:C}").ToArray();
             }
             dt.CreateColumn("Total").Values = entities.Select(i => $"{i.Transactions.Sum(j => j.amount):C}").ToArray();
 
